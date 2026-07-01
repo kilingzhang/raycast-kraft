@@ -543,7 +543,7 @@
     "node-fetch": "^3.3.0",
     "socks-proxy-agent": "^7.0.0",
     "stream-json": "^1.8.0",
-    "uuid": "^9.0.0"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^1.0.6",
