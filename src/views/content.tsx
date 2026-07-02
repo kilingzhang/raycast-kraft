@@ -13,13 +13,13 @@ import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { getLoadActionSection } from "../actions/load";
+import { useApiSettings } from "../hooks/useApiSettings";
 import { HistoryHook, Record } from "../hooks/useHistory";
 import { useProxy } from "../hooks/useProxy";
 import { QueryHook } from "../hooks/useQuery";
 import { getLangName, detectLang } from "../runtime/languages";
 import { ToolMode } from "../runtime/types";
 import { getErrorText } from "../runtime/http";
-import { sanitizeApiSettings } from "../runtime/api-settings";
 import { streamChatCompletions } from "../runtime/llm-client";
 import { buildPromptMessages, buildToolVariables, ConversationMessage } from "../runtime/tool-runtime";
 import { resolveToolModel, ToolSetting } from "../tool-settings";
@@ -85,6 +85,7 @@ export const ContentView = (props: ContentViewProps) => {
     setIsEmpty,
   } = props;
   const agent = useProxy();
+  const apiSettings = useApiSettings();
   const [data, setData] = useState<ViewItem[]>();
   const [querying, setQuerying] = useState<Querying | null>();
   const [translatedText, setTranslatedText] = useState("");
@@ -119,7 +120,7 @@ export const ContentView = (props: ContentViewProps) => {
   }
 
   async function doQuery() {
-    const model = resolveToolModel(toolSetting);
+    const model = resolveToolModel(toolSetting) || apiSettings.data.validatedModel || "";
     if (!model) {
       await showToast({
         title: "Model is required",
@@ -130,11 +131,10 @@ export const ContentView = (props: ContentViewProps) => {
       return;
     }
 
-    const apiSettings = sanitizeApiSettings(getPreferenceValues());
-    if (!apiSettings.apiBase) {
+    if (!apiSettings.data.apiBase || !apiSettings.data.validatedAt) {
       await showToast({
-        title: "API Base is required",
-        message: "Open API Settings and set the API base URL.",
+        title: "Validate API settings first",
+        message: "Open API Settings and pass the model list plus hi chat check.",
         style: Toast.Style.Failure,
       });
       query.updateQuerying(false);
@@ -189,7 +189,7 @@ export const ContentView = (props: ContentViewProps) => {
     let output = "";
     try {
       for await (const delta of streamChatCompletions({
-        settings: apiSettings,
+        settings: apiSettings.data,
         model,
         messages,
         signal,
@@ -217,7 +217,7 @@ export const ContentView = (props: ContentViewProps) => {
           text: output,
         },
         ocrImg: img,
-        provider: `${apiSettings.apiCompatible} / ${model}`,
+        provider: `${apiSettings.data.apiCompatible} / ${model}`,
       };
       await history.add(record);
       if (toolSetting.enableConversation) {
@@ -251,7 +251,7 @@ export const ContentView = (props: ContentViewProps) => {
           error: message,
         },
         ocrImg: img,
-        provider: `${apiSettings.apiCompatible} / ${model}`,
+        provider: `${apiSettings.data.apiCompatible} / ${model}`,
       };
       await history.add(record);
       query.updateQuerying(false);

@@ -17,18 +17,25 @@ npm install
 npm run dev
 ```
 
-## 全局 API 设置
+## API Settings
 
-Raycast 扩展设置里只保留 API 连接信息：
+在 Kraft 菜单里打开 `API Settings`，配置 API 连接信息：
 
 - `API Base`
 - `API Key`
 - `API Compatible`
 
-`API Compatible` 决定模型调用和模型列表端点。当前第一版支持 `Chat Completions Compatible`：
+当前支持两种兼容类型：
 
-- Chat completions: `/chat/completions`
-- Models: `/models`
+- `OpenAI`：模型列表 `/models`，聊天 `/chat/completions`
+- `Claude`：模型列表 `/models`，聊天 `/messages`
+
+保存配置前，Kraft 会先校验真实可用性：
+
+1. 请求模型列表。
+2. 取第一个模型。
+3. 发送一次 `hi` chat。
+4. 通过后才保存配置并返回下一步。
 
 ## 工具设置
 
@@ -40,6 +47,8 @@ Raycast 扩展设置里只保留 API 连接信息：
 - `Renderer`：Markdown 或纯文本。
 - `Conversation`：是否开启多轮追问。
 - `Workflow`：当前工具的处理步骤预览。
+
+保存工具设置时，也会对当前选择的模型发送一次 `hi` chat。校验失败时不会保存。
 
 可用变量：
 

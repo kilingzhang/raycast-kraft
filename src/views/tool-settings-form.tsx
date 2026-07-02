@@ -1,7 +1,8 @@
-import { Action, ActionPanel, Form, getPreferenceValues, Icon, showToast, Toast, useNavigation } from "@raycast/api";
+import { Action, ActionPanel, Form, Icon, showToast, Toast, useNavigation } from "@raycast/api";
 import { useEffect, useState } from "react";
+import { useApiSettings } from "../hooks/useApiSettings";
 import { ToolMode } from "../runtime/types";
-import { sanitizeApiSettings } from "../runtime/api-settings";
+import { validateApiConnection } from "../runtime/api-validation";
 import { listModels, ModelOption } from "../runtime/model-list";
 import { resolveWorkflow } from "../runtime/tool-runtime";
 import { ToolRenderer, ToolSetting } from "../tool-settings";
@@ -15,20 +16,21 @@ export interface ToolSettingsFormProps {
 
 export function ToolSettingsForm({ tool, setting, onSave }: ToolSettingsFormProps) {
   const { pop } = useNavigation();
+  const apiSettings = useApiSettings();
   const [models, setModels] = useState<ModelOption[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const mode = tool.mode ?? "translate";
   const workflow = resolveWorkflow(setting.workflow);
 
   useEffect(() => {
     (async () => {
-      const apiSettings = sanitizeApiSettings(getPreferenceValues());
-      if (!apiSettings.apiBase) {
+      if (apiSettings.isLoading || !apiSettings.data.apiBase || !apiSettings.data.validatedAt) {
         return;
       }
       setIsLoadingModels(true);
       try {
-        setModels(await listModels(apiSettings));
+        setModels(await listModels(apiSettings.data));
       } catch (error) {
         await showToast({
           title: "Model list unavailable",
@@ -39,7 +41,7 @@ export function ToolSettingsForm({ tool, setting, onSave }: ToolSettingsFormProp
         setIsLoadingModels(false);
       }
     })();
-  }, []);
+  }, [apiSettings.data, apiSettings.isLoading]);
 
   async function submit(values: {
     model: string;
@@ -48,6 +50,44 @@ export function ToolSettingsForm({ tool, setting, onSave }: ToolSettingsFormProp
     renderer: ToolRenderer;
     enableConversation: boolean;
   }) {
+    const model = values.customModel.trim() || values.model || apiSettings.data.validatedModel || "";
+    if (!apiSettings.data.validatedAt) {
+      await showToast({
+        title: "Validate API settings first",
+        message: "Open API Settings and pass the model list plus hi chat check.",
+        style: Toast.Style.Failure,
+      });
+      return;
+    }
+    if (!model) {
+      await showToast({
+        title: "Model is required",
+        message: "Choose a model or enter a custom model.",
+        style: Toast.Style.Failure,
+      });
+      return;
+    }
+
+    const toast = await showToast({
+      title: "Validating model...",
+      message: "Sending hi chat",
+      style: Toast.Style.Animated,
+    });
+    setIsValidating(true);
+    try {
+      await validateApiConnection({ ...apiSettings.data, validatedModel: model }, fetch, (message) => {
+        toast.message = message;
+      });
+      toast.title = "Model validated";
+      toast.style = Toast.Style.Success;
+    } catch (error) {
+      toast.title = "Model validation failed";
+      toast.message = error instanceof Error ? error.message : String(error);
+      toast.style = Toast.Style.Failure;
+      setIsValidating(false);
+      return;
+    }
+
     await onSave(mode, {
       model: values.model,
       customModel: values.customModel.trim(),
@@ -55,13 +95,15 @@ export function ToolSettingsForm({ tool, setting, onSave }: ToolSettingsFormProp
       renderer: values.renderer,
       enableConversation: values.enableConversation,
     });
-    await showToast({ title: "Tool settings saved", style: Toast.Style.Success });
+    toast.title = "Tool settings saved";
+    toast.style = Toast.Style.Success;
+    setIsValidating(false);
     pop();
   }
 
   return (
     <Form
-      isLoading={isLoadingModels}
+      isLoading={apiSettings.isLoading || isLoadingModels || isValidating}
       navigationTitle={`${tool.title} Settings`}
       actions={
         <ActionPanel>
@@ -70,7 +112,7 @@ export function ToolSettingsForm({ tool, setting, onSave }: ToolSettingsFormProp
       }
     >
       <Form.Dropdown id="model" title="Model" defaultValue={setting.model}>
-        <Form.Dropdown.Item value="" title="Use Custom Model" />
+        <Form.Dropdown.Item value="" title={apiSettings.data.validatedModel || "Use Custom Model"} />
         {models.map((model) => (
           <Form.Dropdown.Item key={model.id} value={model.id} title={model.name} />
         ))}

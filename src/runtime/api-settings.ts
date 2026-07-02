@@ -4,12 +4,14 @@ export interface ApiSettings {
   apiBase: string;
   apiKey: string;
   apiCompatible: ApiCompatible;
+  validatedAt?: string;
+  validatedModel?: string;
 }
 
 export const defaultApiSettings: ApiSettings = {
   apiBase: "",
   apiKey: "",
-  apiCompatible: "chat-completions-compatible",
+  apiCompatible: "openai",
 };
 
 export function sanitizeApiSettings(settings: Partial<ApiSettings>): ApiSettings {
@@ -17,5 +19,7 @@ export function sanitizeApiSettings(settings: Partial<ApiSettings>): ApiSettings
     apiBase: settings.apiBase ? normalizeApiBase(settings.apiBase) : "",
     apiKey: settings.apiKey?.trim() ?? "",
     apiCompatible: settings.apiCompatible ?? defaultApiSettings.apiCompatible,
+    validatedAt: settings.validatedAt,
+    validatedModel: settings.validatedModel,
   };
 }

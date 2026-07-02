@@ -6,6 +6,7 @@ import { LangDropdown } from "./views/lang-dropdown";
 import { useHistory } from "./hooks/useHistory";
 import capitalize from "capitalize";
 import { ToolMode } from "./runtime/types";
+import { useApiSettings } from "./hooks/useApiSettings";
 import { useToolSettings } from "./hooks/useToolSettings";
 import { executionTools } from "./tools";
 
@@ -58,12 +59,13 @@ export default function getBase(
     ocrImage,
   });
   const history = useHistory();
+  const apiSettings = useApiSettings();
   const toolSettings = useToolSettings();
 
   const [isInit, setIsInit] = useState<boolean>(true);
   const [isEmpty, setIsEmpty] = useState<boolean>(true);
 
-  if (toolSettings.isLoading || history.isLoading) {
+  if (apiSettings.isLoading || toolSettings.isLoading || history.isLoading) {
     return <List isLoading />;
   }
 

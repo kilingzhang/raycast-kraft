@@ -1,6 +1,8 @@
-import { Action, ActionPanel, Icon, launchCommand, LaunchType, List, openExtensionPreferences } from "@raycast/api";
+import { Action, ActionPanel, Icon, launchCommand, LaunchType, List } from "@raycast/api";
+import { useApiSettings } from "../hooks/useApiSettings";
 import { useToolSettings } from "../hooks/useToolSettings";
 import { ToolDefinition, menuSections } from "../tools";
+import { ApiSettingsForm } from "./api-settings-form";
 import { ToolSettingsForm } from "./tool-settings-form";
 
 export type ToolMenuProps = {
@@ -19,10 +21,6 @@ const TOOL_ICONS: Record<string, Icon> = {
 };
 
 function openTool(tool: ToolDefinition, onOpenCurrentCommandTool?: (tool: ToolDefinition) => void) {
-  if (tool.id === "api-settings") {
-    return openExtensionPreferences();
-  }
-
   if (tool.launch.command === "translate" && onOpenCurrentCommandTool) {
     onOpenCurrentCommandTool(tool);
     return;
@@ -43,10 +41,15 @@ function actionTitle(tool: ToolDefinition) {
 }
 
 export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
+  const apiSettings = useApiSettings();
   const toolSettings = useToolSettings();
 
   return (
-    <List isLoading={toolSettings.isLoading} searchBarPlaceholder="Search AI tools..." navigationTitle="AI Tools">
+    <List
+      isLoading={apiSettings.isLoading || toolSettings.isLoading}
+      searchBarPlaceholder="Search AI tools..."
+      navigationTitle="AI Tools"
+    >
       {menuSections.map((section) => (
         <List.Section key={section.id} title={section.title}>
           {section.tools.map((tool) => (
@@ -58,11 +61,19 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
               accessories={[{ text: tool.kind === "execution" ? "Tool" : tool.kind === "input" ? "Input" : "Setup" }]}
               actions={
                 <ActionPanel>
-                  <Action
-                    title={actionTitle(tool)}
-                    icon={TOOL_ICONS[tool.id] ?? Icon.CommandSymbol}
-                    onAction={() => openTool(tool, onOpenCurrentCommandTool)}
-                  />
+                  {tool.kind === "configuration" ? (
+                    <Action.Push
+                      title={actionTitle(tool)}
+                      icon={TOOL_ICONS[tool.id] ?? Icon.CommandSymbol}
+                      target={<ApiSettingsForm hook={apiSettings} />}
+                    />
+                  ) : (
+                    <Action
+                      title={actionTitle(tool)}
+                      icon={TOOL_ICONS[tool.id] ?? Icon.CommandSymbol}
+                      onAction={() => openTool(tool, onOpenCurrentCommandTool)}
+                    />
+                  )}
                   {tool.kind === "execution" && tool.mode && (
                     <Action.Push
                       title="Tool Settings"
@@ -79,11 +90,11 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                   )}
                   {tool.kind !== "configuration" && (
                     <ActionPanel.Section title="Setup">
-                      <Action
+                      <Action.Push
                         title="Open API Settings"
                         icon={Icon.Gear}
                         shortcut={{ modifiers: ["cmd", "ctrl"], key: "p" }}
-                        onAction={() => openExtensionPreferences()}
+                        target={<ApiSettingsForm hook={apiSettings} />}
                       />
                     </ActionPanel.Section>
                   )}

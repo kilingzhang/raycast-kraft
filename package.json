@@ -142,35 +142,6 @@
   ],
   "preferences": [
     {
-      "name": "apiBase",
-      "type": "textfield",
-      "required": true,
-      "title": "API Base",
-      "default": "",
-      "description": "Base URL for the selected API-compatible service, for example https://api.example.com/v1."
-    },
-    {
-      "name": "apiKey",
-      "type": "password",
-      "required": false,
-      "title": "API Key",
-      "description": "API key for the selected API-compatible service."
-    },
-    {
-      "name": "apiCompatible",
-      "type": "dropdown",
-      "required": true,
-      "title": "API Compatible",
-      "default": "chat-completions-compatible",
-      "description": "Determines the chat completion and model list endpoints.",
-      "data": [
-        {
-          "value": "chat-completions-compatible",
-          "title": "Chat Completions Compatible"
-        }
-      ]
-    },
-    {
       "name": "toLang",
       "type": "dropdown",
       "required": true,

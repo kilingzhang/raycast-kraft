@@ -1,18 +1,27 @@
-export type ApiCompatible = "chat-completions-compatible";
+export type ApiCompatible = "openai" | "claude";
 
 export interface CompatibilityProfile {
   id: ApiCompatible;
   title: string;
-  chatCompletionsPath: string;
+  chatPath: string;
   modelsPath: string;
+  defaultApiBase: string;
 }
 
 export const compatibilityProfiles: CompatibilityProfile[] = [
   {
-    id: "chat-completions-compatible",
-    title: "Chat Completions Compatible",
-    chatCompletionsPath: "/chat/completions",
+    id: "openai",
+    title: "OpenAI",
+    chatPath: "/chat/completions",
     modelsPath: "/models",
+    defaultApiBase: "https://api.openai.com/v1",
+  },
+  {
+    id: "claude",
+    title: "Claude",
+    chatPath: "/messages",
+    modelsPath: "/models",
+    defaultApiBase: "https://api.anthropic.com/v1",
   },
 ];
 

@@ -3,10 +3,18 @@ import { defaultApiSettings, sanitizeApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile, normalizeApiBase } from "./api-compatibility";
 import { buildModelsUrl, parseModelList } from "./model-list";
 import { buildPromptMessages, buildToolVariables, renderTemplate, resolveWorkflow } from "./tool-runtime";
+import { validateApiConnection } from "./api-validation";
 
-const profile = getCompatibilityProfile("chat-completions-compatible");
-assert.equal(profile.chatCompletionsPath, "/chat/completions");
-assert.equal(profile.modelsPath, "/models");
+const openaiProfile = getCompatibilityProfile("openai");
+assert.equal(openaiProfile.chatPath, "/chat/completions");
+assert.equal(openaiProfile.modelsPath, "/models");
+assert.equal(openaiProfile.title, "OpenAI");
+
+const claudeProfile = getCompatibilityProfile("claude");
+assert.equal(claudeProfile.chatPath, "/messages");
+assert.equal(claudeProfile.modelsPath, "/models");
+assert.equal(claudeProfile.title, "Claude");
+
 assert.equal(normalizeApiBase("https://api.example.com/v1/"), "https://api.example.com/v1");
 assert.equal(buildCompatibleUrl("https://api.example.com/v1/", "/models"), "https://api.example.com/v1/models");
 
@@ -36,25 +44,21 @@ assert.deepEqual(resolveWorkflow(["input", "prompt", "llm", "renderer"]), [
   { id: "renderer", title: "Markdown Renderer", kind: "render" },
 ]);
 
-assert.equal(defaultApiSettings.apiCompatible, "chat-completions-compatible");
+assert.equal(defaultApiSettings.apiCompatible, "openai");
 assert.equal(
-  sanitizeApiSettings({ apiBase: "https://x.test/v1/", apiKey: " k ", apiCompatible: "chat-completions-compatible" })
-    .apiBase,
+  sanitizeApiSettings({ apiBase: "https://x.test/v1/", apiKey: " k ", apiCompatible: "openai" }).apiBase,
   "https://x.test/v1",
 );
-assert.equal(
-  sanitizeApiSettings({ apiBase: "", apiKey: "", apiCompatible: "chat-completions-compatible" }).apiBase,
-  "",
-);
+assert.equal(sanitizeApiSettings({ apiBase: "", apiKey: "", apiCompatible: "claude" }).apiBase, "");
 
-assert.equal(
-  buildModelsUrl({ apiBase: "https://x.test/v1", apiCompatible: "chat-completions-compatible" }),
-  "https://x.test/v1/models",
-);
+assert.equal(buildModelsUrl({ apiBase: "https://x.test/v1", apiCompatible: "openai" }), "https://x.test/v1/models");
 assert.deepEqual(
-  parseModelList({ data: [{ id: "gpt-4.1" }, { id: "claude" }] }).map((model) => model.id),
-  ["gpt-4.1", "claude"],
+  parseModelList({ data: [{ id: "gpt-4.1" }, { id: "gpt-4o-mini" }] }, "openai").map((model) => model.id),
+  ["gpt-4.1", "gpt-4o-mini"],
 );
+assert.deepEqual(parseModelList({ data: [{ id: "claude-sonnet-4-5", display_name: "Claude Sonnet" }] }, "claude"), [
+  { id: "claude-sonnet-4-5", name: "Claude Sonnet" },
+]);
 
 const messages = buildPromptMessages({
   systemPrompt: "Tool: {{toolName}}",
@@ -70,3 +74,69 @@ assert.deepEqual(
 );
 assert.equal(messages[0].content, "Tool: Translate");
 assert.equal(messages[2].content, "Input: hello");
+
+async function testOpenAIValidationFlow() {
+  const validationCalls: { url: string; headers?: Record<string, string>; body?: string }[] = [];
+  const validationResult = await validateApiConnection(
+    { apiBase: "https://x.test/v1", apiKey: "test-key", apiCompatible: "openai" },
+    async (url, init) => {
+      validationCalls.push({ url, headers: init?.headers, body: init?.body?.toString() });
+      if (url.endsWith("/models")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: "gpt-test" }] }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: "hi" } }] }),
+      };
+    },
+  );
+
+  assert.equal(validationResult.model.id, "gpt-test");
+  assert.equal(validationResult.responseText, "hi");
+  assert.equal(validationCalls[0].url, "https://x.test/v1/models");
+  assert.equal(validationCalls[1].url, "https://x.test/v1/chat/completions");
+  assert.equal(validationCalls[1].headers?.Authorization, "Bearer test-key");
+  assert.match(validationCalls[1].body ?? "", /hi/);
+}
+
+async function testClaudeValidationFlow() {
+  const validationCalls: { url: string; headers?: Record<string, string>; body?: string }[] = [];
+  const validationResult = await validateApiConnection(
+    { apiBase: "https://api.anthropic.com/v1", apiKey: "claude-key", apiCompatible: "claude" },
+    async (url, init) => {
+      validationCalls.push({ url, headers: init?.headers, body: init?.body?.toString() });
+      if (url.endsWith("/models")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ id: "claude-test", display_name: "Claude Test" }] }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [{ type: "text", text: "hi" }] }),
+      };
+    },
+  );
+
+  assert.equal(validationResult.model.id, "claude-test");
+  assert.equal(validationResult.model.name, "Claude Test");
+  assert.equal(validationResult.responseText, "hi");
+  assert.equal(validationCalls[0].url, "https://api.anthropic.com/v1/models");
+  assert.equal(validationCalls[1].url, "https://api.anthropic.com/v1/messages");
+  assert.equal(validationCalls[1].headers?.["x-api-key"], "claude-key");
+  assert.equal(validationCalls[1].headers?.["anthropic-version"], "2023-06-01");
+  assert.match(validationCalls[1].body ?? "", /hi/);
+  assert.match(validationCalls[1].body ?? "", /max_tokens/);
+}
+
+Promise.all([testOpenAIValidationFlow(), testClaudeValidationFlow()]).catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

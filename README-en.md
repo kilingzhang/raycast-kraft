@@ -17,18 +17,25 @@ npm install
 npm run dev
 ```
 
-## Global API Settings
+## API Settings
 
-Raycast extension preferences only keep API connection settings:
+Open `API Settings` from the Kraft menu and configure:
 
 - `API Base`
 - `API Key`
 - `API Compatible`
 
-`API Compatible` determines the model call and model list endpoints. The first version supports `Chat Completions Compatible`:
+Kraft currently supports two compatibility types:
 
-- Chat completions: `/chat/completions`
-- Models: `/models`
+- `OpenAI`: model list `/models`, chat `/chat/completions`
+- `Claude`: model list `/models`, chat `/messages`
+
+Before saving API settings, Kraft validates the connection:
+
+1. Load the model list.
+2. Pick the first model.
+3. Send a `hi` chat request.
+4. Save only after the chat request succeeds.
 
 ## Tool Settings
 
@@ -40,6 +47,8 @@ Each tool has its own `Tool Settings`:
 - `Renderer`: Markdown or plain text.
 - `Conversation`: enables multi-turn follow-up for that tool.
 - `Workflow`: preview of the current processing steps.
+
+When saving tool settings, Kraft also sends a `hi` chat request with the selected model. Failed validation blocks saving.
 
 Available variables:
 
