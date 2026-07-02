@@ -41,7 +41,7 @@ export function buildAISDKProviderHeaders(settings: ApiSettings, trace?: AITrace
   }
 
   const headers: Record<string, string> = {};
-  if (settings.apiCompatible === "claude" && settings.apiKey) {
+  if (settings.apiCompatible === "anthropic" && settings.apiKey) {
     headers["x-api-key"] = settings.apiKey;
   }
   if (settings.apiCompatible === "openai" && settings.apiKey) {
@@ -92,7 +92,7 @@ export function buildAISDKProviderModel(
   const headers = traceHeaders(trace);
   const fetcher = buildProviderFetch(agent, diagnostics);
 
-  if (settings.apiCompatible === "claude") {
+  if (settings.apiCompatible === "anthropic") {
     const anthropic = createAnthropic({
       apiKey: settings.apiKey,
       baseURL: settings.apiBase,

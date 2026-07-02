@@ -50,7 +50,7 @@ function parseOpenAIDelta(data: string): string | undefined {
   return choice.delta?.content ?? "";
 }
 
-function parseClaudeDelta(data: string): string | undefined {
+function parseAnthropicDelta(data: string): string | undefined {
   const payload = JSON.parse(data);
   if (payload.type !== "content_block_delta") {
     return undefined;
@@ -61,7 +61,7 @@ function parseClaudeDelta(data: string): string | undefined {
   return payload.delta.text ?? "";
 }
 
-function splitMessagesForClaude(messages: ConversationMessage[]) {
+function splitMessagesForAnthropic(messages: ConversationMessage[]) {
   const system = messages
     .filter((message) => message.role === "system")
     .map((message) => message.content)
@@ -107,8 +107,8 @@ export function buildRaycastAIPrompt(messages: ConversationMessage[]): string {
 }
 
 export function buildChatRequestBody(input: StreamChatInput, stream: boolean): Record<string, unknown> {
-  if (input.settings.apiCompatible === "claude") {
-    const { system, conversation } = splitMessagesForClaude(input.messages);
+  if (input.settings.apiCompatible === "anthropic") {
+    const { system, conversation } = splitMessagesForAnthropic(input.messages);
     return {
       model: input.model,
       max_tokens: 1024,
@@ -130,7 +130,7 @@ export function parseChatResponse(settings: ApiSettings, payload: unknown): stri
   if (!payload || typeof payload !== "object") {
     return "";
   }
-  if (settings.apiCompatible === "claude") {
+  if (settings.apiCompatible === "anthropic") {
     if (!("content" in payload) || !Array.isArray(payload.content)) {
       return "";
     }
@@ -303,7 +303,7 @@ export async function* streamChatCompletions(input: StreamChatInput): AsyncGener
     events.length = 0;
     parser.feed(decoder.decode(chunk as ArrayBuffer));
     for (const event of events) {
-      const delta = input.settings.apiCompatible === "claude" ? parseClaudeDelta(event) : parseOpenAIDelta(event);
+      const delta = input.settings.apiCompatible === "anthropic" ? parseAnthropicDelta(event) : parseOpenAIDelta(event);
       if (delta) {
         deltaCount += 1;
         outputChars += delta.length;
