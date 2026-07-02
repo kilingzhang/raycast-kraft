@@ -174,7 +174,7 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                         target={<AppSettingsForm hook={appSettings} />}
                       />
                       <Action.Push
-                        title="Open API Settings"
+                        title="Open Api Settings"
                         icon={Icon.Gear}
                         shortcut={{ modifiers: ["cmd", "ctrl"], key: "p" }}
                         target={<ApiSettingsForm hook={apiSettings} />}

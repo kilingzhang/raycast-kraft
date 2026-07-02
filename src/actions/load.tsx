@@ -24,7 +24,7 @@ export const getLoadActionSection = (record: Record, callback: (_arg0: string) =
       }}
     />
     <Action
-      title="Load Selected From Frontmost"
+      title="Load Selected from Frontmost"
       shortcut={{ modifiers: ["cmd", "opt"], key: "l" }}
       icon={Icon.ArrowDown}
       onAction={async () => {
