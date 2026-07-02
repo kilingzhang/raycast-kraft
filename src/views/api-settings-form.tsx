@@ -17,6 +17,7 @@ export function ApiSettingsForm({ hook }: ApiSettingsFormProps) {
     hook.data.apiBase || getCompatibilityProfile(hook.data.apiCompatible).defaultApiBase,
   );
   const [apiKey, setApiKey] = useState(hook.data.apiKey);
+  const [validationModel, setValidationModel] = useState(hook.data.validatedModel ?? "");
   const selectedProfile = getCompatibilityProfile(apiCompatible);
 
   function handleCompatibleChange(value: string) {
@@ -30,7 +31,12 @@ export function ApiSettingsForm({ hook }: ApiSettingsFormProps) {
   }
 
   async function submit() {
-    const settings = sanitizeApiSettings({ apiBase, apiKey, apiCompatible });
+    const settings = sanitizeApiSettings({
+      apiBase,
+      apiKey,
+      apiCompatible,
+      validatedModel: validationModel.trim() || undefined,
+    });
     const toast = await showToast({
       title: "Validating API settings...",
       message: "Checking model list",
@@ -82,9 +88,16 @@ export function ApiSettingsForm({ hook }: ApiSettingsFormProps) {
         placeholder={selectedProfile.defaultApiBase}
       />
       <Form.PasswordField id="apiKey" title="API Key" value={apiKey} onChange={setApiKey} />
+      <Form.TextField
+        id="validationModel"
+        title="Validation Model"
+        value={validationModel}
+        onChange={setValidationModel}
+        placeholder="Used when the model list is empty"
+      />
       <Form.Description
         title="Validation"
-        text="Kraft will load the model list, take the first model, and send a hi chat request before saving."
+        text="Kraft will load the model list, take the first model or the validation model, and send a hi chat request before saving."
       />
       {hook.data.validatedAt && (
         <Form.Description

@@ -50,6 +50,7 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
 
   return (
     <List
+      key="tool-menu"
       isLoading={apiSettings.isLoading || appSettings.isLoading || toolSettings.isLoading}
       searchBarPlaceholder="Search AI tools..."
       navigationTitle="AI Tools"
@@ -88,7 +89,7 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                     <Action.Push
                       title="Tool Settings"
                       icon={Icon.Gear}
-                      shortcut={{ modifiers: ["cmd"], key: "," }}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "," }}
                       target={
                         <ToolSettingsForm
                           tool={tool}

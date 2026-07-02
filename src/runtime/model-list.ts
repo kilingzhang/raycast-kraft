@@ -41,12 +41,22 @@ export function requestHeaders(settings: ModelListSettings): Record<string, stri
 }
 
 export function parseModelList(payload: unknown, apiCompatible: ApiCompatible): ModelOption[] {
-  if (!payload || typeof payload !== "object" || !("data" in payload) || !Array.isArray(payload.data)) {
+  if (!payload || typeof payload !== "object") {
     return [];
   }
 
-  return payload.data
+  const entries =
+    "data" in payload && Array.isArray(payload.data)
+      ? payload.data
+      : "models" in payload && Array.isArray(payload.models)
+        ? payload.models
+        : [];
+
+  return entries
     .map((item) => {
+      if (typeof item === "string") {
+        return { id: item, name: item };
+      }
       if (!item || typeof item !== "object" || !("id" in item) || typeof item.id !== "string") {
         return undefined;
       }

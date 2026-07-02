@@ -76,6 +76,7 @@ export default function getBase(
   const activeTitle = activeTool?.title ?? capitalize(mode);
   return (
     <List
+      key={`execution-${mode}`}
       searchText={query.text}
       isShowingDetail={!isInit && !isEmpty}
       filtering={false}

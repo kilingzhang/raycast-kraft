@@ -63,6 +63,9 @@ assert.deepEqual(
 assert.deepEqual(parseModelList({ data: [{ id: "claude-sonnet-4-5", display_name: "Claude Sonnet" }] }, "claude"), [
   { id: "claude-sonnet-4-5", name: "Claude Sonnet" },
 ]);
+assert.deepEqual(parseModelList({ models: ["claude-sonnet-4"] }, "claude"), [
+  { id: "claude-sonnet-4", name: "claude-sonnet-4" },
+]);
 
 const messages = buildPromptMessages({
   systemPrompt: "Tool: {{toolName}}",
@@ -140,7 +143,41 @@ async function testClaudeValidationFlow() {
   assert.match(validationCalls[1].body ?? "", /max_tokens/);
 }
 
-Promise.all([testOpenAIValidationFlow(), testClaudeValidationFlow()]).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+async function testValidationModelFallbackFlow() {
+  const validationCalls: { url: string; body?: string }[] = [];
+  const validationResult = await validateApiConnection(
+    {
+      apiBase: "http://127.0.0.1:15720/v1",
+      apiKey: "cc-switch",
+      apiCompatible: "claude",
+      validatedModel: "claude-sonnet-4",
+    },
+    async (url, init) => {
+      validationCalls.push({ url, body: init?.body?.toString() });
+      if (url.endsWith("/models")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ models: [] }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ content: [{ type: "text", text: "hi" }] }),
+      };
+    },
+  );
+
+  assert.equal(validationResult.model.id, "claude-sonnet-4");
+  assert.equal(validationCalls[0].url, "http://127.0.0.1:15720/v1/models");
+  assert.equal(validationCalls[1].url, "http://127.0.0.1:15720/v1/messages");
+  assert.match(validationCalls[1].body ?? "", /claude-sonnet-4/);
+}
+
+Promise.all([testOpenAIValidationFlow(), testClaudeValidationFlow(), testValidationModelFallbackFlow()]).catch(
+  (error) => {
+    console.error(error);
+    process.exit(1);
+  },
+);

@@ -316,7 +316,7 @@ export const ContentView = (props: ContentViewProps) => {
       <Action.Push
         title="Tool Settings"
         icon={Icon.Gear}
-        shortcut={{ modifiers: ["cmd"], key: "," }}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "," }}
         target={<ToolSettingsForm tool={activeTool} setting={toolSetting} onSave={updateToolSetting} />}
       />
     </>
