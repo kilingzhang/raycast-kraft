@@ -3,10 +3,8 @@
 
 import ISO6391 from "iso-639-1";
 import detect from "./language-recognizer-wrapper";
-import { dropdownDataByName } from "../raycast-utils";
-
-export const supportLanguages: [string, string][] =
-  dropdownDataByName("toLang")?.map((lang) => [lang.value, lang.title]) || [];
+export { supportLanguages } from "./language-options";
+import { supportLanguages } from "./language-options";
 
 export const langMap: Map<string, string> = new Map(supportLanguages);
 export const langMapReverse = new Map(supportLanguages.map(([standardLang, lang]) => [lang, standardLang]));

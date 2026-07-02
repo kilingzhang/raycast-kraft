@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import packageJson from "../package.json";
 import { defaultToolSettings, getDefaultToolSetting } from "./tool-settings";
 import { allTools, executionTools, getToolById, menuSections } from "./tools";
 
-assert.ok(allTools.length >= 7, "toolbox should expose text, input, and configuration tools");
+assert.ok(allTools.length >= 8, "toolbox should expose text, input, and configuration tools");
 
 const translate = getToolById("translate");
 assert.equal(translate?.title, "Translate");
@@ -15,6 +16,10 @@ const selected = getToolById("selected");
 assert.equal(selected?.title, "Ask About Selected Text");
 assert.equal(selected?.kind, "input");
 assert.equal(selected?.launch.command, "selected");
+
+const appSettings = getToolById("app-settings");
+assert.equal(appSettings?.title, "App Settings");
+assert.equal(appSettings?.kind, "configuration");
 
 const apiSettings = getToolById("api-settings");
 assert.equal(apiSettings?.title, "API Settings");
@@ -38,5 +43,14 @@ assert.equal(getDefaultToolSetting("summarize").renderer, "markdown");
 
 assert.equal(
   allTools.some((tool) => /vendor-only|translator-only/i.test(tool.title + tool.description)),
+  false,
+);
+
+assert.deepEqual(
+  packageJson.preferences?.map((preference) => preference.name),
+  ["settingsLocation"],
+);
+assert.equal(
+  packageJson.commands.some((command) => "preferences" in command),
   false,
 );

@@ -1,7 +1,9 @@
 import { Action, ActionPanel, Icon, launchCommand, LaunchType, List } from "@raycast/api";
 import { useApiSettings } from "../hooks/useApiSettings";
+import { useAppSettings } from "../hooks/useAppSettings";
 import { useToolSettings } from "../hooks/useToolSettings";
 import { ToolDefinition, menuSections } from "../tools";
+import { AppSettingsForm } from "./app-settings-form";
 import { ApiSettingsForm } from "./api-settings-form";
 import { ToolSettingsForm } from "./tool-settings-form";
 
@@ -17,6 +19,7 @@ const TOOL_ICONS: Record<string, Icon> = {
   selected: Icon.TextSelection,
   clipboard: Icon.Clipboard,
   ocr: Icon.Image,
+  "app-settings": Icon.Gear,
   "api-settings": Icon.Gear,
 };
 
@@ -42,11 +45,12 @@ function actionTitle(tool: ToolDefinition) {
 
 export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
   const apiSettings = useApiSettings();
+  const appSettings = useAppSettings();
   const toolSettings = useToolSettings();
 
   return (
     <List
-      isLoading={apiSettings.isLoading || toolSettings.isLoading}
+      isLoading={apiSettings.isLoading || appSettings.isLoading || toolSettings.isLoading}
       searchBarPlaceholder="Search AI tools..."
       navigationTitle="AI Tools"
     >
@@ -65,7 +69,13 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                     <Action.Push
                       title={actionTitle(tool)}
                       icon={TOOL_ICONS[tool.id] ?? Icon.CommandSymbol}
-                      target={<ApiSettingsForm hook={apiSettings} />}
+                      target={
+                        tool.id === "api-settings" ? (
+                          <ApiSettingsForm hook={apiSettings} />
+                        ) : (
+                          <AppSettingsForm hook={appSettings} />
+                        )
+                      }
                     />
                   ) : (
                     <Action
@@ -90,6 +100,12 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                   )}
                   {tool.kind !== "configuration" && (
                     <ActionPanel.Section title="Setup">
+                      <Action.Push
+                        title="Open App Settings"
+                        icon={Icon.Gear}
+                        shortcut={{ modifiers: ["cmd", "ctrl"], key: "," }}
+                        target={<AppSettingsForm hook={appSettings} />}
+                      />
                       <Action.Push
                         title="Open API Settings"
                         icon={Icon.Gear}

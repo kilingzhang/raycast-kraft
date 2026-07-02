@@ -1,30 +1,22 @@
-import { getPreferenceValues } from "@raycast/api";
 import { SocksProxyAgent } from "socks-proxy-agent";
+import { AppSettings } from "../runtime/app-settings";
 
-export function useProxy(): SocksProxyAgent | undefined {
-  const prefs = getPreferenceValues<{
-    useProxy?: boolean;
-    proxyHost?: string;
-    proxyPort?: number;
-    proxyUsername?: string;
-    proxyPassword?: string;
-  }>();
-
-  if (!prefs.useProxy || !prefs.proxyHost || !prefs.proxyPort) {
+export function useProxy(appSettings: AppSettings): SocksProxyAgent | undefined {
+  if (!appSettings.useProxy || !appSettings.proxyHost || !appSettings.proxyPort) {
     return undefined;
   }
 
   let auth = "";
 
-  if (prefs.proxyUsername) {
-    auth = `${encodeURIComponent(prefs.proxyUsername)}`;
-    if (prefs.proxyPassword) {
-      auth = `${auth}:${encodeURIComponent(prefs.proxyPassword)}`;
+  if (appSettings.proxyUsername) {
+    auth = `${encodeURIComponent(appSettings.proxyUsername)}`;
+    if (appSettings.proxyPassword) {
+      auth = `${auth}:${encodeURIComponent(appSettings.proxyPassword)}`;
     }
     auth = `${auth}@`;
   }
 
-  const proxy = `socks5://${auth}${prefs.proxyHost}:${prefs.proxyPort}`;
+  const proxy = `socks5://${auth}${appSettings.proxyHost}:${appSettings.proxyPort}`;
 
   return new SocksProxyAgent(proxy);
 }

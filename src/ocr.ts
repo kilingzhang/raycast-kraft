@@ -2,7 +2,6 @@
 import {
   closeMainWindow,
   environment,
-  getPreferenceValues,
   launchCommand,
   LaunchType,
   PopToRootType,
@@ -11,6 +10,7 @@ import {
 } from "@raycast/api";
 import { spawnSync } from "child_process";
 import fs from "fs";
+import { readAppSettings } from "./hooks/useAppSettings";
 
 async function fetchUnreadNotificationCount() {
   return 10;
@@ -25,11 +25,7 @@ function screencapture(file: string) {
 type CallbackType = "deeplink" | "launchCommand";
 
 export default async function Command() {
-  const { language, level, customWords } = getPreferenceValues<{
-    language: string;
-    level: string;
-    customWords: string;
-  }>();
+  const settings = await readAppSettings();
   const callbackType: CallbackType = "deeplink";
   await closeMainWindow({ clearRootSearch: true });
   const ocrPath = `${environment.assetsPath}/ocr_img`;
@@ -49,9 +45,9 @@ export default async function Command() {
 
     const { status, stderr } = spawnSync(binary, [
       ...(callbackType == "deeplink" ? ["deeplink", tmpFile] : [tmpFile]),
-      language,
-      `"${customWords}"`,
-      level,
+      settings.ocrLanguage,
+      `"${settings.ocrCustomWords}"`,
+      settings.ocrLevel,
       "translate",
     ]);
     if (status != 0) {

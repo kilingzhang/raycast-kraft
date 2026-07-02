@@ -7,6 +7,7 @@ import { useHistory } from "./hooks/useHistory";
 import capitalize from "capitalize";
 import { ToolMode } from "./runtime/types";
 import { useApiSettings } from "./hooks/useApiSettings";
+import { useAppSettings } from "./hooks/useAppSettings";
 import { useToolSettings } from "./hooks/useToolSettings";
 import { executionTools } from "./tools";
 
@@ -51,21 +52,23 @@ export default function getBase(
 
   const [mode, setMode] = useState<ToolMode>(initialMode);
   const [selectedId, setSelectedId] = useState<string>("");
+  const appSettings = useAppSettings();
   const query = useQuery({
     initialQuery,
     forceEnableAutoStart,
     forceEnableAutoLoadSelected,
     forceEnableAutoLoadClipboard,
     ocrImage,
+    appSettings: appSettings.data,
   });
-  const history = useHistory();
+  const history = useHistory(appSettings.data);
   const apiSettings = useApiSettings();
   const toolSettings = useToolSettings();
 
   const [isInit, setIsInit] = useState<boolean>(true);
   const [isEmpty, setIsEmpty] = useState<boolean>(true);
 
-  if (apiSettings.isLoading || toolSettings.isLoading || history.isLoading) {
+  if (appSettings.isLoading || apiSettings.isLoading || toolSettings.isLoading || history.isLoading) {
     return <List isLoading />;
   }
 
@@ -113,6 +116,7 @@ export default function getBase(
         setSelectedId={setSelectedId}
         setIsInit={setIsInit}
         setIsEmpty={setIsEmpty}
+        appSettings={appSettings.data}
       />
     </List>
   );

@@ -122,6 +122,15 @@ export const inputTools: ToolDefinition[] = [
 
 export const configurationTools: ToolDefinition[] = [
   {
+    id: "app-settings",
+    title: "App Settings",
+    subtitle: "Language, input, output, history, proxy, and OCR",
+    description: "Configure Kraft behavior inside the extension.",
+    kind: "configuration",
+    section: "configuration",
+    launch: { command: "app-settings" },
+  },
+  {
     id: "api-settings",
     title: "API Settings",
     subtitle: "API base, key, and compatibility",

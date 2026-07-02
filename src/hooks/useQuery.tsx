@@ -1,5 +1,6 @@
-import { getPreferenceValues, getSelectedText, showToast, Toast, Clipboard } from "@raycast/api";
+import { getSelectedText, showToast, Toast, Clipboard } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppSettings } from "../runtime/app-settings";
 
 export interface QueryHook {
   text: string;
@@ -23,6 +24,7 @@ export interface UseQueryProps {
   forceEnableAutoLoadSelected: boolean;
   forceEnableAutoLoadClipboard: boolean;
   ocrImage: string | undefined;
+  appSettings: AppSettings;
 }
 
 export function useQuery(props: UseQueryProps): QueryHook {
@@ -32,15 +34,10 @@ export function useQuery(props: UseQueryProps): QueryHook {
     forceEnableAutoLoadSelected,
     forceEnableAutoLoadClipboard,
     ocrImage: initialOcr,
+    appSettings,
   } = props;
-  const { toLang, isAutoLoadSelected, isAutoLoadClipboard, isAutoStart } = getPreferenceValues<{
-    toLang: string;
-    isAutoLoadSelected: boolean;
-    isAutoLoadClipboard: boolean;
-    isAutoStart: boolean;
-  }>();
   const [text, setText] = useState<string>(initialQuery || "");
-  const [to, setTo] = useState<string>(toLang);
+  const [to, setTo] = useState<string>(appSettings.defaultOutputLanguage);
   const [from, setFrom] = useState<string>("auto");
   const [langType, setLangType] = useState("To");
   const [isLoading, setLoading] = useState<boolean>(false);
@@ -48,10 +45,14 @@ export function useQuery(props: UseQueryProps): QueryHook {
   const [ocrImage, setOcrImage] = useState<string | undefined>(initialOcr);
 
   useEffect(() => {
+    setTo(appSettings.defaultOutputLanguage);
+  }, [appSettings.defaultOutputLanguage]);
+
+  useEffect(() => {
     (async () => {
       let tmp = "";
       if (text.length == 0) {
-        if (forceEnableAutoLoadSelected || isAutoLoadSelected) {
+        if (forceEnableAutoLoadSelected || appSettings.autoLoadSelected) {
           setLoading(true);
           try {
             const selectedText = (await getSelectedText()).trim();
@@ -72,7 +73,7 @@ export function useQuery(props: UseQueryProps): QueryHook {
             setLoading(false);
           }
         }
-        if (forceEnableAutoLoadClipboard || (isAutoLoadClipboard && tmp.length == 0)) {
+        if (forceEnableAutoLoadClipboard || (appSettings.autoLoadClipboard && tmp.length == 0)) {
           setLoading(true);
           try {
             const { text } = await Clipboard.read();
@@ -100,7 +101,7 @@ export function useQuery(props: UseQueryProps): QueryHook {
         tmp = text;
       }
 
-      if (tmp.length > 0 && (forceEnableAutoStart || isAutoStart)) {
+      if (tmp.length > 0 && (forceEnableAutoStart || appSettings.autoStart)) {
         updateQuerying(true);
       }
     })();

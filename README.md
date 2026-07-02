@@ -8,6 +8,8 @@ Input -> Workflow -> Output -> Renderer -> Conversation
 
 默认入口是 `Kraft`。打开后先看到工具菜单，而不是某个翻译或厂商设置页。
 
+Raycast 原生 Preferences 只保留一个位置提示。真实设置都在 Kraft 菜单内部完成，避免绕过校验流程。
+
 ## 安装
 
 ```shell
@@ -36,6 +38,17 @@ npm run dev
 2. 取第一个模型。
 3. 发送一次 `hi` chat。
 4. 通过后才保存配置并返回下一步。
+
+## App Settings
+
+在 Kraft 菜单里打开 `App Settings`，配置应用级行为：
+
+- 默认输出语言。
+- 选中文本、剪贴板自动加载。
+- 输入加载后自动运行工具。
+- 结果自动复制、元数据默认展示、历史数量。
+- SOCKS5 代理。
+- OCR 语言、识别级别、自定义词。
 
 ## 工具设置
 

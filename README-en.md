@@ -8,6 +8,8 @@ Input -> Workflow -> Output -> Renderer -> Conversation
 
 The default command is `Kraft`. It opens a tool menu first, not a translation or vendor settings page.
 
+Raycast native Preferences only show where settings live. Real settings are handled inside Kraft to avoid bypassing validation.
+
 ## Install
 
 ```shell
@@ -36,6 +38,17 @@ Before saving API settings, Kraft validates the connection:
 2. Pick the first model.
 3. Send a `hi` chat request.
 4. Save only after the chat request succeeds.
+
+## App Settings
+
+Open `App Settings` from the Kraft menu to configure app behavior:
+
+- Default output language.
+- Auto-load selected text or clipboard text.
+- Auto-start the tool after input is loaded.
+- Auto-copy result, metadata visibility, and history size.
+- SOCKS5 proxy.
+- OCR language, recognition level, and custom words.
 
 ## Tool Settings
 

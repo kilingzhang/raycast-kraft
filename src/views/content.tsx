@@ -1,14 +1,4 @@
-import {
-  Action,
-  ActionPanel,
-  Clipboard,
-  confirmAlert,
-  getPreferenceValues,
-  Icon,
-  List,
-  showToast,
-  Toast,
-} from "@raycast/api";
+import { Action, ActionPanel, Clipboard, confirmAlert, Icon, List, showToast, Toast } from "@raycast/api";
 import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -17,6 +7,7 @@ import { useApiSettings } from "../hooks/useApiSettings";
 import { HistoryHook, Record } from "../hooks/useHistory";
 import { useProxy } from "../hooks/useProxy";
 import { QueryHook } from "../hooks/useQuery";
+import { AppSettings } from "../runtime/app-settings";
 import { getLangName, detectLang } from "../runtime/languages";
 import { ToolMode } from "../runtime/types";
 import { getErrorText } from "../runtime/http";
@@ -39,6 +30,7 @@ export interface ContentViewProps {
   setSelectedId: (value: string) => void;
   setIsInit: (value: boolean) => void;
   setIsEmpty: (value: boolean) => void;
+  appSettings: AppSettings;
 }
 
 export interface RuntimeQuery {
@@ -59,14 +51,6 @@ export interface Querying {
 
 type ViewItem = Querying | Record;
 
-const { alwayShowMetadata } = getPreferenceValues<{
-  alwayShowMetadata: boolean;
-}>();
-
-const { isAutoCopy2Clipboard } = getPreferenceValues<{
-  isAutoCopy2Clipboard: boolean;
-}>();
-
 function isQuerying(item: ViewItem): item is Querying {
   return "controller" in item;
 }
@@ -83,14 +67,19 @@ export const ContentView = (props: ContentViewProps) => {
     setSelectedId,
     setIsInit,
     setIsEmpty,
+    appSettings,
   } = props;
-  const agent = useProxy();
+  const agent = useProxy(appSettings);
   const apiSettings = useApiSettings();
   const [data, setData] = useState<ViewItem[]>();
   const [querying, setQuerying] = useState<Querying | null>();
   const [translatedText, setTranslatedText] = useState("");
-  const [showMetadata, setShowMetadata] = useState(alwayShowMetadata);
+  const [showMetadata, setShowMetadata] = useState(appSettings.alwaysShowMetadata);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+
+  useEffect(() => {
+    setShowMetadata(appSettings.alwaysShowMetadata);
+  }, [appSettings.alwaysShowMetadata]);
 
   function updateData() {
     if (history.data) {
@@ -199,7 +188,7 @@ export const ContentView = (props: ContentViewProps) => {
         setTranslatedText(output);
       }
 
-      if (isAutoCopy2Clipboard) {
+      if (appSettings.autoCopyToClipboard) {
         await copy2Clipboard(output);
       } else {
         toast.title = "AI result ready";

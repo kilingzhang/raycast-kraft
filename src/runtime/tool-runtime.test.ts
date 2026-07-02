@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { defaultAppSettings, sanitizeAppSettings } from "./app-settings";
 import { defaultApiSettings, sanitizeApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile, normalizeApiBase } from "./api-compatibility";
 import { buildModelsUrl, parseModelList } from "./model-list";
@@ -45,6 +46,9 @@ assert.deepEqual(resolveWorkflow(["input", "prompt", "llm", "renderer"]), [
 ]);
 
 assert.equal(defaultApiSettings.apiCompatible, "openai");
+assert.equal(defaultAppSettings.defaultOutputLanguage, "zh-Hans");
+assert.equal(sanitizeAppSettings({ maxHistorySize: -1 }).maxHistorySize, 30);
+assert.equal(sanitizeAppSettings({ defaultOutputLanguage: "ja", ocrLevel: "fast" }).ocrLevel, "fast");
 assert.equal(
   sanitizeApiSettings({ apiBase: "https://x.test/v1/", apiKey: " k ", apiCompatible: "openai" }).apiBase,
   "https://x.test/v1",

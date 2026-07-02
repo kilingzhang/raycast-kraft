@@ -1,7 +1,8 @@
-import { getPreferenceValues, LocalStorage, showToast, Toast } from "@raycast/api";
+import { LocalStorage, showToast, Toast } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { promises as fs } from "fs";
 import { ToolMode, ToolResult } from "../runtime/types";
+import { AppSettings } from "../runtime/app-settings";
 
 export interface Record {
   id: string;
@@ -20,8 +21,7 @@ export interface HistoryHook {
   clear: () => Promise<void>;
 }
 
-export function useHistory(): HistoryHook {
-  const { maxHistorySize } = getPreferenceValues<{ maxHistorySize: string }>();
+export function useHistory(appSettings: AppSettings): HistoryHook {
   const [data, setData] = useState<Record[]>();
   const countRef = useRef(data);
   const [isLoading, setLoading] = useState<boolean>(true);
@@ -57,7 +57,7 @@ export function useHistory(): HistoryHook {
     async (record: Record) => {
       const data = countRef.current;
       if (data) {
-        const max = (parseInt(maxHistorySize) || 30) - 1;
+        const max = appSettings.maxHistorySize - 1;
         const slice = data.length > max ? data.slice(0, max) : data;
         const remove = data.length > max ? data.slice(max, data.length) : [];
         for (const r of remove) {
@@ -67,7 +67,7 @@ export function useHistory(): HistoryHook {
         setData([record, ...slice]);
       }
     },
-    [setData, data],
+    [setData, data, appSettings.maxHistorySize],
   );
 
   const remove = useCallback(
