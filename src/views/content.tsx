@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Clipboard, confirmAlert, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, AI, Clipboard, confirmAlert, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -12,7 +12,7 @@ import { AppSettings } from "../runtime/app-settings";
 import { getLangName, detectLang } from "../runtime/languages";
 import { ToolMode } from "../runtime/types";
 import { getErrorText } from "../runtime/http";
-import { streamChatCompletions } from "../runtime/llm-client";
+import { RaycastAIStream, streamToolCompletion } from "../runtime/llm-client";
 import { buildPromptMessages, buildToolVariables, ConversationMessage } from "../runtime/tool-runtime";
 import { resolveToolModel, ToolSetting } from "../tool-settings";
 import { ToolDefinition } from "../tools";
@@ -190,12 +190,17 @@ export const ContentView = (props: ContentViewProps) => {
 
     let output = "";
     try {
-      for await (const delta of streamChatCompletions({
+      for await (const delta of streamToolCompletion({
         settings: apiSettings.data,
         model,
         messages,
         signal,
         agent,
+        raycastAI: {
+          ask(prompt, options) {
+            return AI.ask(prompt, options as never) as RaycastAIStream;
+          },
+        },
       })) {
         output += delta;
         setResultText(output);
