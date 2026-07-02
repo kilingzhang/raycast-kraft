@@ -29,6 +29,31 @@ export function buildModelsUrl(settings: ModelListSettings): string {
   return buildCompatibleUrl(settings.apiBase, profile.modelsPath);
 }
 
+export function buildModelListUrlCandidates(settings: ModelListSettings): string[] {
+  const primary = buildModelsUrl(settings);
+  const candidates = [primary];
+
+  try {
+    const url = new URL(normalizeModelListBase(settings.apiBase));
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (/^v\d+$/i.test(segments[segments.length - 1] ?? "")) {
+      url.pathname = `/${segments.slice(0, -1).join("/")}/models`.replace("//", "/");
+      const fallback = url.toString();
+      if (!candidates.includes(fallback)) {
+        candidates.push(fallback);
+      }
+    }
+  } catch {
+    // Keep the primary URL for non-standard but fetchable bases.
+  }
+
+  return candidates;
+}
+
+function normalizeModelListBase(apiBase: string): string {
+  return apiBase.trim().replace(/\/+$/, "");
+}
+
 export function requestHeaders(settings: ModelListSettings): Record<string, string> {
   if (settings.apiCompatible === "claude") {
     return {
@@ -70,11 +95,19 @@ export function parseModelList(payload: unknown, apiCompatible: ApiCompatible): 
 }
 
 export async function listModels(settings: ModelListSettings, fetcher: FetchLike = fetch): Promise<ModelOption[]> {
-  const response = await fetcher(buildModelsUrl(settings), {
-    headers: requestHeaders(settings),
-  });
-  if (!response.ok) {
-    throw new Error(`Model list request failed: ${response.status}`);
+  let lastStatus: number | undefined;
+  for (const url of buildModelListUrlCandidates(settings)) {
+    const response = await fetcher(url, {
+      headers: requestHeaders(settings),
+    });
+    lastStatus = response.status;
+    if (!response.ok) {
+      continue;
+    }
+    const models = parseModelList(await response.json(), settings.apiCompatible);
+    if (models.length > 0 || url === buildModelListUrlCandidates(settings).at(-1)) {
+      return models;
+    }
   }
-  return parseModelList(await response.json(), settings.apiCompatible);
+  throw new Error(`Model list request failed: ${lastStatus ?? "unknown"}`);
 }

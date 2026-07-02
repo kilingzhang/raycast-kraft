@@ -48,7 +48,7 @@ export default async function Command() {
       settings.ocrLanguage,
       `"${settings.ocrCustomWords}"`,
       settings.ocrLevel,
-      "translate",
+      "input-picker",
     ]);
     if (status != 0) {
       showHUD(`OCR failed: ${stderr ? stderr.toString() : "unknown error"}`);

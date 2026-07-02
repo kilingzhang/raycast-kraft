@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { defaultAppSettings, sanitizeAppSettings } from "./app-settings";
 import { defaultApiSettings, sanitizeApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile, normalizeApiBase } from "./api-compatibility";
-import { buildModelsUrl, parseModelList } from "./model-list";
+import { buildModelListUrlCandidates, buildModelsUrl, parseModelList } from "./model-list";
 import { buildPromptMessages, buildToolVariables, renderTemplate, resolveWorkflow } from "./tool-runtime";
 import { validateApiConnection } from "./api-validation";
 
@@ -56,6 +56,10 @@ assert.equal(
 assert.equal(sanitizeApiSettings({ apiBase: "", apiKey: "", apiCompatible: "claude" }).apiBase, "");
 
 assert.equal(buildModelsUrl({ apiBase: "https://x.test/v1", apiCompatible: "openai" }), "https://x.test/v1/models");
+assert.deepEqual(buildModelListUrlCandidates({ apiBase: "https://x.test/v1", apiCompatible: "openai" }), [
+  "https://x.test/v1/models",
+  "https://x.test/models",
+]);
 assert.deepEqual(
   parseModelList({ data: [{ id: "gpt-4.1" }, { id: "gpt-4o-mini" }] }, "openai").map((model) => model.id),
   ["gpt-4.1", "gpt-4o-mini"],
@@ -171,8 +175,9 @@ async function testValidationModelFallbackFlow() {
 
   assert.equal(validationResult.model.id, "claude-sonnet-4");
   assert.equal(validationCalls[0].url, "http://127.0.0.1:15720/v1/models");
-  assert.equal(validationCalls[1].url, "http://127.0.0.1:15720/v1/messages");
-  assert.match(validationCalls[1].body ?? "", /claude-sonnet-4/);
+  assert.equal(validationCalls[1].url, "http://127.0.0.1:15720/models");
+  assert.equal(validationCalls[2].url, "http://127.0.0.1:15720/v1/messages");
+  assert.match(validationCalls[2].body ?? "", /claude-sonnet-4/);
 }
 
 Promise.all([testOpenAIValidationFlow(), testClaudeValidationFlow(), testValidationModelFallbackFlow()]).catch(

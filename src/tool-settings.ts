@@ -1,4 +1,4 @@
-import { ToolMode } from "./runtime/types";
+import { BuiltInToolMode, ToolMode } from "./runtime/types";
 import { WorkflowStepId } from "./runtime/tool-runtime";
 
 export type ToolRenderer = "markdown" | "plain";
@@ -12,11 +12,11 @@ export interface ToolSetting {
   workflow: WorkflowStepId[];
 }
 
-export type ToolSettings = Record<ToolMode, ToolSetting>;
+export type ToolSettings = Record<string, ToolSetting>;
 
-const defaultWorkflow: WorkflowStepId[] = ["input", "prompt", "llm", "renderer"];
+export const defaultWorkflow: WorkflowStepId[] = ["input", "prompt", "llm", "renderer"];
 
-export const defaultToolSettings: ToolSettings = {
+export const defaultToolSettings: Record<BuiltInToolMode, ToolSetting> = {
   translate: {
     model: "",
     customModel: "",
@@ -54,16 +54,36 @@ export const defaultToolSettings: ToolSettings = {
   },
 };
 
-export function getDefaultToolSetting(mode: ToolMode): ToolSetting {
-  return defaultToolSettings[mode];
+export function createDefaultToolSetting(patch: Partial<ToolSetting> = {}): ToolSetting {
+  return {
+    model: "",
+    customModel: "",
+    prompt: "{{input}}",
+    renderer: "markdown",
+    enableConversation: false,
+    workflow: defaultWorkflow,
+    ...patch,
+  };
 }
 
-export function mergeToolSettings(stored: Partial<Record<ToolMode, Partial<ToolSetting>>>): ToolSettings {
+export function getDefaultToolSetting(mode: ToolMode): ToolSetting {
+  if (mode in defaultToolSettings) {
+    return defaultToolSettings[mode as BuiltInToolMode];
+  }
+  return createDefaultToolSetting();
+}
+
+export function mergeToolSettings(stored: Partial<Record<string, Partial<ToolSetting>>>): ToolSettings {
   return {
     translate: { ...defaultToolSettings.translate, ...stored.translate },
     polishing: { ...defaultToolSettings.polishing, ...stored.polishing },
     summarize: { ...defaultToolSettings.summarize, ...stored.summarize },
     what: { ...defaultToolSettings.what, ...stored.what },
+    ...Object.fromEntries(
+      Object.entries(stored)
+        .filter(([mode]) => mode.startsWith("custom:"))
+        .map(([mode, setting]) => [mode, createDefaultToolSetting(setting)]),
+    ),
   };
 }
 

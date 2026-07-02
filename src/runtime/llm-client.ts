@@ -1,5 +1,5 @@
 import { createParser } from "eventsource-parser";
-import { SocksProxyAgent } from "socks-proxy-agent";
+import { ProxyAgent } from "proxy-agent";
 import { ApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile } from "./api-compatibility";
 import { requestHeaders } from "./model-list";
@@ -11,7 +11,7 @@ export interface StreamChatInput {
   model: string;
   messages: ConversationMessage[];
   signal: AbortSignal;
-  agent?: SocksProxyAgent;
+  agent?: InstanceType<typeof ProxyAgent>;
 }
 
 function parseOpenAIDelta(data: string): string | undefined {

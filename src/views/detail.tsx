@@ -12,6 +12,7 @@ export interface DetailViewProps {
   from: string;
   to: string;
   mode: ToolMode;
+  toolTitle?: string;
   created_at?: string;
   ocrImg: string | undefined;
   provider: string | undefined;
@@ -31,8 +32,16 @@ function imageMarkdown(path: string | undefined) {
   return `\n![](<${path.replaceAll(">", "%3E")}>)`;
 }
 
+function formatModeTitle(mode: ToolMode) {
+  if (mode.startsWith("custom:")) {
+    return capitalize(mode.slice("custom:".length).replaceAll("-", " "));
+  }
+  return capitalize(mode);
+}
+
 export const DetailView = (props: DetailViewProps) => {
-  const { showMetadata, text, error, isLoading, original, from, to, mode, created_at, ocrImg, provider } = props;
+  const { showMetadata, text, error, isLoading, original, from, to, mode, toolTitle, created_at, ocrImg, provider } =
+    props;
   const statusMd = isLoading ? "_Generating..._\n\n" : "";
   const errorMd = error ? `**Error**\n\n${codeBlock(error)}\n\n` : "";
   const imgMd = imageMarkdown(ocrImg);
@@ -44,7 +53,7 @@ export const DetailView = (props: DetailViewProps) => {
           <Detail.Metadata>
             {mode != "what" ? <Detail.Metadata.Label title="From" text={`${langMap.get(from) || "Auto"}`} /> : null}
             <Detail.Metadata.Label title="To" text={`${langMap.get(to)}`} />
-            <Detail.Metadata.Label title="Tool" text={capitalize(mode)} />
+            <Detail.Metadata.Label title="Tool" text={toolTitle ?? formatModeTitle(mode)} />
             {created_at && <Detail.Metadata.Label title="Created At" text={`${created_at}`} />}
             {provider && <Detail.Metadata.Label title="Runtime" text={provider} />}
           </Detail.Metadata>

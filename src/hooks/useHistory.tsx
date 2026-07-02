@@ -8,6 +8,7 @@ export interface Record {
   id: string;
   created_at: string;
   mode: ToolMode;
+  toolTitle?: string;
   result: ToolResult;
   ocrImg: string | undefined;
   provider: string | undefined;
@@ -19,6 +20,7 @@ export interface HistoryHook {
   add: (arg: Record) => Promise<void>;
   remove: (arg: Record) => Promise<void>;
   clear: () => Promise<void>;
+  clearMode: (mode: ToolMode) => Promise<void>;
 }
 
 export function useHistory(appSettings: AppSettings): HistoryHook {
@@ -104,5 +106,28 @@ export function useHistory(appSettings: AppSettings): HistoryHook {
     }
   }, [setData, data]);
 
-  return useMemo(() => ({ data, isLoading, add, remove, clear }), [data, isLoading, add, remove, clear]);
+  const clearMode = useCallback(
+    async (mode: ToolMode) => {
+      const data = countRef.current;
+      if (data) {
+        const toast = await showToast({
+          title: "Clearing tool history...",
+          style: Toast.Style.Animated,
+        });
+        const remove = data.filter((item) => item.mode === mode);
+        for (const r of remove) {
+          await unlink(r);
+        }
+        setData(data.filter((item) => item.mode !== mode));
+        toast.title = "Tool history cleared!";
+        toast.style = Toast.Style.Success;
+      }
+    },
+    [setData, data],
+  );
+
+  return useMemo(
+    () => ({ data, isLoading, add, remove, clear, clearMode }),
+    [data, isLoading, add, remove, clear, clearMode],
+  );
 }

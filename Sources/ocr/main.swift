@@ -112,14 +112,18 @@ if(output.count == 0){
 if(deeplink == "deeplink"){
     let absolutePath = URL(fileURLWithPath: imagePath, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL.path
 
-    let responseMessages = ["txt": output,
-                            "mode": mode,
-                            "img": absolutePath]
+    let responseMessages: [String: Any] = ["txt": output,
+                                           "inputPicker": true,
+                                           "source": "ocr",
+                                           "sourceTitle": "Screenshot Text",
+                                           "img": absolutePath]
     do {
         let jsonData = try JSONSerialization.data(withJSONObject: responseMessages, options: [])
         if let jsonString = String(data: jsonData, encoding: .utf8) {
-            let encodedString = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let url = URL(string: "raycast://extensions/kilingzhang/kraft/translate?context=\(encodedString)")
+            var allowedCharacters = CharacterSet.urlQueryAllowed
+            allowedCharacters.remove(charactersIn: "&+=?")
+            let encodedString = jsonString.addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? ""
+            let url = URL(string: "raycast://extensions/kilingzhang/kraft/kraft?context=\(encodedString)")
             NSWorkspace.shared.open(url!)
         }
     } catch {

@@ -5,7 +5,7 @@ import { mergeToolSettings, ToolSetting, ToolSettings } from "../tool-settings";
 
 const STORAGE_KEY = "toolSettings.v1";
 
-function safeParse(raw: string | undefined): Partial<Record<ToolMode, Partial<ToolSetting>>> {
+function safeParse(raw: string | undefined): Partial<Record<string, Partial<ToolSetting>>> {
   if (!raw) {
     return {};
   }

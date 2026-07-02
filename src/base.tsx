@@ -10,6 +10,8 @@ import { useApiSettings } from "./hooks/useApiSettings";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useToolSettings } from "./hooks/useToolSettings";
 import { executionTools } from "./tools";
+import { useCustomTools } from "./hooks/useCustomTools";
+import { createDefaultToolSetting } from "./tool-settings";
 
 export default function getBase(
   props: LaunchProps,
@@ -25,26 +27,18 @@ export default function getBase(
     initialQuery = props.launchContext["txt"];
     ocrImage = props.launchContext["img"];
     // if has key of autoStart, set it else set to false
-    if (props.launchContext["autoStart"]) {
+    if ("autoStart" in props.launchContext) {
       forceEnableAutoStart = props.launchContext["autoStart"] as boolean;
-    } else {
-      if (props.launchContext["img"]) {
-        forceEnableAutoStart = true; // ocr hack
-      } else {
-        forceEnableAutoStart = false;
-      }
+    } else if (props.launchContext["img"]) {
+      forceEnableAutoStart = true; // ocr hack
     }
 
-    if (props.launchContext["loadSelected"]) {
+    if ("loadSelected" in props.launchContext) {
       forceEnableAutoLoadSelected = props.launchContext["loadSelected"] as boolean;
-    } else {
-      forceEnableAutoLoadSelected = false;
     }
 
-    if (props.launchContext["loadClipboard"]) {
+    if ("loadClipboard" in props.launchContext) {
       forceEnableAutoLoadClipboard = props.launchContext["loadClipboard"] as boolean;
-    } else {
-      forceEnableAutoLoadClipboard = false;
     }
   } else {
     initialQuery = props.fallbackText;
@@ -64,16 +58,33 @@ export default function getBase(
   const history = useHistory(appSettings.data);
   const apiSettings = useApiSettings();
   const toolSettings = useToolSettings();
+  const customTools = useCustomTools();
 
   const [isInit, setIsInit] = useState<boolean>(true);
   const [isEmpty, setIsEmpty] = useState<boolean>(true);
 
-  if (appSettings.isLoading || apiSettings.isLoading || toolSettings.isLoading || history.isLoading) {
+  if (
+    appSettings.isLoading ||
+    apiSettings.isLoading ||
+    toolSettings.isLoading ||
+    history.isLoading ||
+    customTools.isLoading
+  ) {
     return <List isLoading />;
   }
 
-  const activeTool = executionTools.find((tool) => tool.mode === mode) ?? executionTools[0];
+  const availableExecutionTools = [...executionTools, ...customTools.data];
+  const activeTool = availableExecutionTools.find((tool) => tool.mode === mode) ?? availableExecutionTools[0];
   const activeTitle = activeTool?.title ?? capitalize(mode);
+  const activeMode = activeTool?.mode ?? mode;
+  const toolSetting =
+    toolSettings.data[activeMode] ??
+    createDefaultToolSetting({
+      prompt: activeTool?.defaultPrompt,
+      renderer: activeTool?.defaultRenderer,
+      enableConversation: activeTool?.defaultConversationEnabled,
+      workflow: activeTool?.workflow,
+    });
   return (
     <List
       key={`execution-${mode}`}
@@ -109,11 +120,13 @@ export default function getBase(
       <ContentView
         query={query}
         history={history}
-        mode={mode}
+        mode={activeMode}
         setMode={setMode}
         activeTool={activeTool}
-        toolSetting={toolSettings.data[mode]}
+        availableExecutionTools={availableExecutionTools}
+        toolSetting={toolSetting}
         updateToolSetting={toolSettings.updateToolSetting}
+        apiSettings={apiSettings}
         setSelectedId={setSelectedId}
         setIsInit={setIsInit}
         setIsEmpty={setIsEmpty}

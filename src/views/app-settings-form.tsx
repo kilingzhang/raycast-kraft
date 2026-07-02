@@ -36,6 +36,7 @@ export function AppSettingsForm({ hook }: AppSettingsFormProps) {
     autoCopyToClipboard: boolean;
     maxHistorySize: string;
     alwaysShowMetadata: boolean;
+    proxyMode: "system" | "none" | "socks5";
     useProxy: boolean;
     proxyHost: string;
     proxyPort: string;
@@ -107,7 +108,11 @@ export function AppSettingsForm({ hook }: AppSettingsFormProps) {
         placeholder="30"
       />
       <Form.Separator />
-      <Form.Checkbox id="useProxy" title="Proxy" label="Use SOCKS5 proxy" defaultValue={hook.data.useProxy} />
+      <Form.Dropdown id="proxyMode" title="Proxy" defaultValue={hook.data.proxyMode}>
+        <Form.Dropdown.Item value="system" title="System Proxy" />
+        <Form.Dropdown.Item value="none" title="No Proxy" />
+        <Form.Dropdown.Item value="socks5" title="Manual SOCKS5 Proxy" />
+      </Form.Dropdown>
       <Form.TextField id="proxyHost" title="Proxy Host" defaultValue={hook.data.proxyHost} />
       <Form.TextField id="proxyPort" title="Proxy Port" defaultValue={hook.data.proxyPort} />
       <Form.TextField id="proxyUsername" title="Proxy Username" defaultValue={hook.data.proxyUsername} />

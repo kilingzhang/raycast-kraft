@@ -1,15 +1,22 @@
-import { launchCommand, LaunchProps, LaunchType } from "@raycast/api";
+import { Clipboard, launchCommand, LaunchProps, LaunchType, showHUD } from "@raycast/api";
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 export default async function Command(props: LaunchProps) {
+  const text = await Clipboard.readText();
+
+  if (!text?.trim()) {
+    await showHUD("No clipboard text found");
+    return;
+  }
+
   await launchCommand({
-    name: "translate",
+    name: "kraft",
     type: LaunchType.UserInitiated,
     context: {
-      mode: "translate",
-      autoStart: true,
-      loadSelected: false,
-      loadClipboard: true,
+      inputPicker: true,
+      source: "clipboard",
+      sourceTitle: "Clipboard Text",
+      txt: text,
     },
   });
 }

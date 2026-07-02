@@ -1,6 +1,7 @@
 import { ToolMode } from "./runtime/types";
 import { WorkflowStepId } from "./runtime/tool-runtime";
 import { defaultToolSettings, ToolRenderer } from "./tool-settings";
+import { ToolIconName } from "./tool-icons";
 
 export type ToolKind = "execution" | "input" | "configuration";
 export type ToolSectionId = "text" | "input" | "configuration";
@@ -12,6 +13,7 @@ export interface ToolLaunch {
 
 export interface ToolDefinition {
   id: string;
+  icon?: ToolIconName;
   title: string;
   subtitle: string;
   description: string;
@@ -58,7 +60,7 @@ export const executionTools: ToolDefinition[] = [
     defaultPrompt: defaultToolSettings.polishing.prompt,
     defaultRenderer: defaultToolSettings.polishing.renderer,
     defaultConversationEnabled: defaultToolSettings.polishing.enableConversation,
-    launch: { command: "translate", context: { mode: "polishing", autoStart: false } },
+    launch: { command: "kraft", context: { mode: "polishing", autoStart: false } },
   },
   {
     id: "summarize",
@@ -72,7 +74,7 @@ export const executionTools: ToolDefinition[] = [
     defaultPrompt: defaultToolSettings.summarize.prompt,
     defaultRenderer: defaultToolSettings.summarize.renderer,
     defaultConversationEnabled: defaultToolSettings.summarize.enableConversation,
-    launch: { command: "translate", context: { mode: "summarize", autoStart: false } },
+    launch: { command: "kraft", context: { mode: "summarize", autoStart: false } },
   },
   {
     id: "what",
@@ -86,7 +88,7 @@ export const executionTools: ToolDefinition[] = [
     defaultPrompt: defaultToolSettings.what.prompt,
     defaultRenderer: defaultToolSettings.what.renderer,
     defaultConversationEnabled: defaultToolSettings.what.enableConversation,
-    launch: { command: "translate", context: { mode: "what", autoStart: false } },
+    launch: { command: "kraft", context: { mode: "what", autoStart: false } },
   },
 ];
 
@@ -95,7 +97,7 @@ export const inputTools: ToolDefinition[] = [
     id: "selected",
     title: "Ask About Selected Text",
     subtitle: "Use text from the frontmost app",
-    description: "Run the default AI tool on the current selection.",
+    description: "Capture selected text, then choose a tool or workflow.",
     kind: "input",
     section: "input",
     launch: { command: "selected" },
@@ -104,7 +106,7 @@ export const inputTools: ToolDefinition[] = [
     id: "clipboard",
     title: "Ask About Clipboard",
     subtitle: "Use clipboard text",
-    description: "Run the default AI tool on clipboard content.",
+    description: "Capture clipboard text, then choose a tool or workflow.",
     kind: "input",
     section: "input",
     launch: { command: "clipboard" },
@@ -121,6 +123,15 @@ export const inputTools: ToolDefinition[] = [
 ];
 
 export const configurationTools: ToolDefinition[] = [
+  {
+    id: "tool-manager",
+    title: "Text Tool Manager",
+    subtitle: "Create and edit text tools",
+    description: "Manage custom text tools inside Kraft.",
+    kind: "configuration",
+    section: "configuration",
+    launch: { command: "tool-manager" },
+  },
   {
     id: "app-settings",
     title: "App Settings",

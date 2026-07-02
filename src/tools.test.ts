@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import packageJson from "../package.json";
 import { defaultToolSettings, getDefaultToolSetting } from "./tool-settings";
+import { sortExecutionToolsByUsage } from "./tool-usage";
 import { allTools, executionTools, getToolById, menuSections } from "./tools";
 
 assert.ok(allTools.length >= 8, "toolbox should expose text, input, and configuration tools");
@@ -42,15 +43,25 @@ assert.equal(defaultToolSettings.what.enableConversation, true);
 assert.equal(getDefaultToolSetting("summarize").renderer, "markdown");
 
 assert.equal(
-  allTools.some((tool) => /vendor-only|translator-only/i.test(tool.title + tool.description)),
+  allTools.some((tool) => /vendor-only/i.test(tool.title + tool.description)),
   false,
 );
 
+assert.equal("preferences" in packageJson, false);
 assert.deepEqual(
-  packageJson.preferences?.map((preference) => preference.name),
-  ["settingsLocation"],
+  packageJson.commands
+    .filter((command) => ["kraft", "translate", "polishing", "summarize", "what"].includes(command.name))
+    .map((command) => command.name),
+  ["kraft", "translate", "polishing", "summarize", "what"],
 );
 assert.equal(
   packageJson.commands.some((command) => "preferences" in command),
   false,
+);
+
+assert.deepEqual(
+  sortExecutionToolsByUsage(executionTools, [{ mode: "summarize" }, { mode: "what" }, { mode: "summarize" }]).map(
+    (tool) => tool.id,
+  ),
+  ["summarize", "what", "translate", "polishing"],
 );

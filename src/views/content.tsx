@@ -3,7 +3,8 @@ import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { getLoadActionSection } from "../actions/load";
-import { useApiSettings } from "../hooks/useApiSettings";
+import { readModelListCache } from "../hooks/model-cache";
+import { ApiSettingsHook } from "../hooks/useApiSettings";
 import { HistoryHook, Record } from "../hooks/useHistory";
 import { useProxy } from "../hooks/useProxy";
 import { QueryHook } from "../hooks/useQuery";
@@ -14,7 +15,8 @@ import { getErrorText } from "../runtime/http";
 import { streamChatCompletions } from "../runtime/llm-client";
 import { buildPromptMessages, buildToolVariables, ConversationMessage } from "../runtime/tool-runtime";
 import { resolveToolModel, ToolSetting } from "../tool-settings";
-import { ToolDefinition, executionTools } from "../tools";
+import { ToolDefinition } from "../tools";
+import { getToolIcon } from "../tool-icons";
 import { DetailView } from "./detail";
 import { EmptyView } from "./empty";
 import { ToolSettingsForm } from "./tool-settings-form";
@@ -25,8 +27,10 @@ export interface ContentViewProps {
   mode: ToolMode;
   setMode: (value: ToolMode) => void;
   activeTool: ToolDefinition;
+  availableExecutionTools: ToolDefinition[];
   toolSetting: ToolSetting;
   updateToolSetting: (mode: ToolMode, patch: Partial<ToolSetting>) => Promise<void>;
+  apiSettings: ApiSettingsHook;
   setSelectedId: (value: string) => void;
   setIsInit: (value: boolean) => void;
   setIsEmpty: (value: boolean) => void;
@@ -55,6 +59,12 @@ function isQuerying(item: ViewItem): item is Querying {
   return "controller" in item;
 }
 
+type PendingToolRun = {
+  mode: ToolMode;
+  text: string;
+  ocrImg?: string;
+};
+
 export const ContentView = (props: ContentViewProps) => {
   const {
     query,
@@ -62,20 +72,22 @@ export const ContentView = (props: ContentViewProps) => {
     mode,
     setMode,
     activeTool,
+    availableExecutionTools,
     toolSetting,
     updateToolSetting,
+    apiSettings,
     setSelectedId,
     setIsInit,
     setIsEmpty,
     appSettings,
   } = props;
   const agent = useProxy(appSettings);
-  const apiSettings = useApiSettings();
   const [data, setData] = useState<ViewItem[]>();
   const [querying, setQuerying] = useState<Querying | null>();
-  const [translatedText, setTranslatedText] = useState("");
+  const [resultText, setResultText] = useState("");
   const [showMetadata, setShowMetadata] = useState(appSettings.alwaysShowMetadata);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [pendingToolRun, setPendingToolRun] = useState<PendingToolRun | null>(null);
 
   useEffect(() => {
     setShowMetadata(appSettings.alwaysShowMetadata);
@@ -83,9 +95,9 @@ export const ContentView = (props: ContentViewProps) => {
 
   function updateData() {
     if (history.data) {
-      const sortedResults = [...history.data].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
+      const sortedResults = history.data
+        .filter((record) => record.mode === mode)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       if (querying == null) {
         setData(sortedResults);
         if (sortedResults.length > 0) {
@@ -109,11 +121,12 @@ export const ContentView = (props: ContentViewProps) => {
   }
 
   async function doQuery() {
-    const model = resolveToolModel(toolSetting) || apiSettings.data.validatedModel || "";
+    const cachedModels = await readModelListCache(apiSettings.data);
+    const model = resolveToolModel(toolSetting) || apiSettings.data.validatedModel || cachedModels?.models[0]?.id || "";
     if (!model) {
       await showToast({
         title: "Model is required",
-        message: "Choose a model in Tool Settings or enter a custom model.",
+        message: "Open API Settings, load the model list, then validate and save.",
         style: Toast.Style.Failure,
       });
       query.updateQuerying(false);
@@ -171,7 +184,7 @@ export const ContentView = (props: ContentViewProps) => {
       id: "querying",
     };
 
-    setTranslatedText("");
+    setResultText("");
     setQuerying(activeQuerying);
     query.updateText("");
 
@@ -185,7 +198,7 @@ export const ContentView = (props: ContentViewProps) => {
         agent,
       })) {
         output += delta;
-        setTranslatedText(output);
+        setResultText(output);
       }
 
       if (appSettings.autoCopyToClipboard) {
@@ -198,6 +211,7 @@ export const ContentView = (props: ContentViewProps) => {
       const record: Record = {
         id: uuidv4(),
         mode,
+        toolTitle: activeTool.title,
         created_at: new Date().toISOString(),
         result: {
           from: detectFrom,
@@ -231,6 +245,7 @@ export const ContentView = (props: ContentViewProps) => {
       const record: Record = {
         id: uuidv4(),
         mode,
+        toolTitle: activeTool.title,
         created_at: new Date().toISOString(),
         result: {
           from: detectFrom,
@@ -256,8 +271,15 @@ export const ContentView = (props: ContentViewProps) => {
   }, [query.querying]);
 
   useEffect(() => {
+    if (pendingToolRun && pendingToolRun.mode === mode && pendingToolRun.text === query.text && !query.querying) {
+      query.updateQuerying(true);
+      setPendingToolRun(null);
+    }
+  }, [pendingToolRun, mode, query.text, query.querying]);
+
+  useEffect(() => {
     updateData();
-  }, [history.data, querying]);
+  }, [history.data, querying, mode]);
 
   useEffect(() => {
     setIsEmpty(data == undefined || data.length == 0);
@@ -278,25 +300,63 @@ export const ContentView = (props: ContentViewProps) => {
     </ActionPanel>
   );
 
-  const getToolActionSection = () => (
-    <ActionPanel.Submenu title="Switch Tool" icon={Icon.CommandSymbol} shortcut={{ modifiers: ["cmd"], key: "m" }}>
-      {executionTools.map((tool) => (
-        <Action
-          title={tool.title}
-          icon={Icon.Text}
-          key={tool.id}
-          autoFocus={tool.mode === mode}
-          onAction={() => {
-            if (tool.mode) {
-              setMode(tool.mode);
-            }
-          }}
-        />
-      ))}
+  const switchTool = async (tool: ToolDefinition, input?: { text?: string; ocrImg?: string; autoRun?: boolean }) => {
+    if (!tool.mode) {
+      return;
+    }
+
+    setMode(tool.mode);
+    if (input?.text) {
+      await query.updateText(input.text);
+      await query.updateOcr(input.ocrImg);
+      if (input.autoRun) {
+        setPendingToolRun({ mode: tool.mode, text: input.text, ocrImg: input.ocrImg });
+      }
+    }
+  };
+
+  function toolActionTitle(tool: ToolDefinition, input?: { text?: string; autoRun?: boolean }) {
+    if (input?.text && input.autoRun) {
+      return `Run Original with ${tool.title}`;
+    }
+    if (input?.text) {
+      return `Open Original in ${tool.title}`;
+    }
+    return `Switch to ${tool.title}`;
+  }
+
+  function toolActionSectionTitle(input?: { text?: string; autoRun?: boolean }) {
+    if (input?.text && input.autoRun) {
+      return "Run Original With Tool";
+    }
+    if (input?.text) {
+      return "Open Original With Tool";
+    }
+    return "Switch Tool";
+  }
+
+  const getToolActionSection = (input?: { text?: string; ocrImg?: string; autoRun?: boolean }) => (
+    <ActionPanel.Submenu
+      title={toolActionSectionTitle(input)}
+      icon={Icon.CommandSymbol}
+      shortcut={{ modifiers: ["cmd"], key: "m" }}
+    >
+      {availableExecutionTools.map((tool) => {
+        const icon = getToolIcon(tool);
+        return (
+          <Action
+            title={toolActionTitle(tool, input)}
+            icon={icon}
+            key={tool.id}
+            autoFocus={tool.mode === mode}
+            onAction={() => switchTool(tool, input)}
+          />
+        );
+      })}
     </ActionPanel.Submenu>
   );
 
-  const getCommonActions = () => (
+  const getCommonActions = (input?: { text?: string; ocrImg?: string; autoRun?: boolean }) => (
     <>
       {query.text && (
         <Action
@@ -312,7 +372,7 @@ export const ContentView = (props: ContentViewProps) => {
           query.updateLangType(query.langType == "To" ? "From" : "To");
         }}
       />
-      {getToolActionSection()}
+      {getToolActionSection(input)}
       <Action.Push
         title="Tool Settings"
         icon={Icon.Gear}
@@ -322,9 +382,23 @@ export const ContentView = (props: ContentViewProps) => {
     </>
   );
 
+  const currentToolHistoryCount = history.data?.filter((record) => record.mode === mode).length ?? 0;
+
+  function formatModeTitle(mode: ToolMode) {
+    if (mode.startsWith("custom:")) {
+      return capitalize(mode.slice("custom:".length).replaceAll("-", " "));
+    }
+    return capitalize(mode);
+  }
+
+  const getRecordToolTitle = (record: Record) =>
+    record.toolTitle ??
+    availableExecutionTools.find((tool) => tool.mode === record.mode)?.title ??
+    formatModeTitle(record.mode);
+
   const getRecordActionPanel = (record: Record) => (
     <ActionPanel>
-      {getCommonActions()}
+      {getCommonActions({ text: record.result.original, ocrImg: record.ocrImg, autoRun: true })}
       <ActionPanel.Section title="Copy">
         <Action.CopyToClipboard
           title="Copy Result"
@@ -384,10 +458,10 @@ export const ContentView = (props: ContentViewProps) => {
             if (
               await confirmAlert({
                 title: "Clear History?",
-                message: `${history.data?.length} items will be removed.`,
+                message: `${currentToolHistoryCount} ${activeTool.title} items will be removed.`,
               })
             ) {
-              history.clear();
+              history.clearMode(mode);
             }
           }}
         />
@@ -400,7 +474,7 @@ export const ContentView = (props: ContentViewProps) => {
   ) : (
     <List.Section
       title={toolSetting.enableConversation ? "Results & Conversation" : "History"}
-      subtitle={history.data?.length.toLocaleString()}
+      subtitle={currentToolHistoryCount.toLocaleString()}
     >
       {data?.map((item, i) => {
         return isQuerying(item) ? (
@@ -414,11 +488,12 @@ export const ContentView = (props: ContentViewProps) => {
             detail={
               <DetailView
                 showMetadata={showMetadata}
-                text={translatedText}
-                isLoading={translatedText.length === 0}
+                text={resultText}
+                isLoading={resultText.length === 0}
                 original={item.query.text}
                 from={item.query.detectFrom}
                 mode={item.query.mode}
+                toolTitle={item.query.toolTitle}
                 ocrImg={query.ocrImage}
                 to={item.query.detectTo}
                 provider={item.query.model}
@@ -431,7 +506,7 @@ export const ContentView = (props: ContentViewProps) => {
             key={item.id}
             title={item.result.original}
             subtitle={item.result.error || item.result.text}
-            accessories={[{ text: item.result.error ? "Error" : capitalize(item.mode) }, { text: `#${i}` }]}
+            accessories={[{ text: item.result.error ? "Error" : getRecordToolTitle(item) }, { text: `#${i}` }]}
             actions={getRecordActionPanel(item)}
             detail={
               <DetailView
@@ -442,6 +517,7 @@ export const ContentView = (props: ContentViewProps) => {
                 from={item.result.from}
                 to={item.result.to}
                 mode={item.mode}
+                toolTitle={getRecordToolTitle(item)}
                 created_at={item.created_at}
                 ocrImg={item.ocrImg}
                 provider={item.provider}
