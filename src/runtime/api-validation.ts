@@ -47,7 +47,7 @@ export async function validateApiConnection(
     throw new Error("API Base is required");
   }
   if (settings.apiCompatible === "claude" && !settings.apiKey) {
-    throw new Error("API Key is required for Claude");
+    throw new Error("API Key is required for Anthropic");
   }
 
   onProgress?.("Checking model list");

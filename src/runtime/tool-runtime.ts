@@ -75,7 +75,7 @@ export function buildPromptMessages(input: PromptMessageInput): ConversationMess
       role: "system",
       content: renderTemplate(input.systemPrompt, input.variables),
     },
-    ...(input.includeConversation ? (input.conversation ?? []) : []),
+    ...(input.includeConversation ? input.conversation ?? [] : []),
     {
       role: "user",
       content: renderTemplate(input.userPrompt, input.variables),

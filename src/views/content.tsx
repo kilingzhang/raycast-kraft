@@ -216,7 +216,7 @@ export const ContentView = (props: ContentViewProps) => {
 
     const text = query.text;
     diagnostics.checkpoint("language.detect.start", { auto: query.from === "auto" });
-    const detectFrom: string = query.from == "auto" ? ((await detectLang(query.text)) ?? "en") : query.from;
+    const detectFrom: string = query.from == "auto" ? (await detectLang(query.text)) ?? "en" : query.from;
     diagnostics.checkpoint("language.detect.done", { detectFrom });
     const detectTo = query.to;
     const img = query.ocrImage;

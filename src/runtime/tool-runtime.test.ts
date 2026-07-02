@@ -7,6 +7,7 @@ import { buildModelListUrlCandidates, buildModelsUrl, parseModelList, parseRayca
 import { buildPromptMessages, buildToolVariables, renderTemplate, resolveWorkflow } from "./tool-runtime";
 import { validateApiConnection } from "./api-validation";
 import { createSessionId, createTraceContext, traceHeaders } from "./tracing";
+import { buildAISDKProviderModel, buildAISDKProviderHeaders } from "./ai-sdk-provider";
 
 const raycastProfile = getCompatibilityProfile("raycast");
 assert.equal(raycastProfile.chatPath, "");
@@ -22,7 +23,7 @@ assert.equal(openaiProfile.title, "OpenAI");
 const claudeProfile = getCompatibilityProfile("claude");
 assert.equal(claudeProfile.chatPath, "/messages");
 assert.equal(claudeProfile.modelsPath, "/models");
-assert.equal(claudeProfile.title, "Claude");
+assert.equal(claudeProfile.title, "Anthropic");
 
 assert.equal(normalizeApiBase("https://api.example.com/v1/"), "https://api.example.com/v1");
 assert.equal(buildCompatibleUrl("https://api.example.com/v1/", "/models"), "https://api.example.com/v1/models");
@@ -105,6 +106,26 @@ assert.deepEqual(traceHeaders(trace), {
   "x-client-request-id": "req-20260702-001",
   "x-session-id": sessionId,
 });
+assert.deepEqual(buildAISDKProviderHeaders({ apiBase: "https://x.test/v1", apiKey: "k", apiCompatible: "openai" }), {
+  Authorization: "Bearer k",
+});
+assert.deepEqual(
+  buildAISDKProviderHeaders({ apiBase: "https://api.anthropic.com/v1", apiKey: "k", apiCompatible: "claude" }),
+  {
+    "x-api-key": "k",
+  },
+);
+assert.equal(
+  buildAISDKProviderModel({ apiBase: "https://x.test/v1", apiKey: "k", apiCompatible: "openai" }, "gpt-test").modelId,
+  "gpt-test",
+);
+assert.equal(
+  buildAISDKProviderModel(
+    { apiBase: "https://api.anthropic.com/v1", apiKey: "k", apiCompatible: "claude" },
+    "claude-test",
+  ).modelId,
+  "claude-test",
+);
 
 const messages = buildPromptMessages({
   systemPrompt: "Tool: {{toolName}}",

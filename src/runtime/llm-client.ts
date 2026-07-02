@@ -7,6 +7,7 @@ import { ConversationMessage } from "./tool-runtime";
 import { fetchSSE } from "./http";
 import { DiagnosticLogger, noopDiagnosticLogger } from "./diagnostics";
 import { AITraceContext, traceHeaders } from "./tracing";
+import { streamAISDKText } from "./ai-sdk-provider";
 
 export interface StreamChatInput {
   settings: ApiSettings;
@@ -325,5 +326,5 @@ export async function* streamToolCompletion(input: StreamToolCompletionInput): A
     return;
   }
 
-  yield* streamChatCompletions(input);
+  yield* streamAISDKText(input);
 }

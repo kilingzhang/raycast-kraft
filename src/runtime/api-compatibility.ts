@@ -25,7 +25,7 @@ export const compatibilityProfiles: CompatibilityProfile[] = [
   },
   {
     id: "claude",
-    title: "Claude",
+    title: "Anthropic",
     chatPath: "/messages",
     modelsPath: "/models",
     defaultApiBase: "https://api.anthropic.com/v1",
