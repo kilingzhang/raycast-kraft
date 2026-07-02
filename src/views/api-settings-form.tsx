@@ -51,6 +51,10 @@ export function ApiSettingsForm({ hook }: ApiSettingsFormProps) {
     setValidationModel("");
     setCustomValidationModel("");
     setHasAutoLoadedModels(false);
+    if (nextCompatible === "raycast") {
+      setApiBase("");
+      return;
+    }
     if (!apiBase || apiBase === currentDefault) {
       setApiBase(nextDefault);
     }
