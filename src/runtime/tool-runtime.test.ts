@@ -6,6 +6,7 @@ import { buildRaycastAIPrompt, streamToolCompletion } from "./llm-client";
 import { buildModelListUrlCandidates, buildModelsUrl, parseModelList, parseRaycastAIModelEnum } from "./model-list";
 import { buildPromptMessages, buildToolVariables, renderTemplate, resolveWorkflow } from "./tool-runtime";
 import { validateApiConnection } from "./api-validation";
+import { createSessionId, createTraceContext, traceHeaders } from "./tracing";
 
 const raycastProfile = getCompatibilityProfile("raycast");
 assert.equal(raycastProfile.chatPath, "");
@@ -89,6 +90,21 @@ assert.deepEqual(
     { id: "anthropic-claude-sonnet-4-5", name: "Anthropic Claude 4.5 Sonnet" },
   ],
 );
+
+const sessionId = createSessionId();
+const trace = createTraceContext({
+  clientRequestId: "req-20260702-001",
+  sessionId,
+});
+assert.match(sessionId, /^session-[a-f0-9]{32}$/);
+assert.match(trace.traceId, /^[a-f0-9]{32}$/);
+assert.match(trace.spanId, /^[a-f0-9]{16}$/);
+assert.equal(trace.traceparent, `00-${trace.traceId}-${trace.spanId}-01`);
+assert.deepEqual(traceHeaders(trace), {
+  traceparent: trace.traceparent,
+  "x-client-request-id": "req-20260702-001",
+  "x-session-id": sessionId,
+});
 
 const messages = buildPromptMessages({
   systemPrompt: "Tool: {{toolName}}",

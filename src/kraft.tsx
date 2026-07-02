@@ -17,12 +17,12 @@ function shouldOpenExecutionView(props: LaunchProps) {
 
   return Boolean(
     props.fallbackText ||
-      context["mode"] ||
-      context["txt"] ||
-      context["img"] ||
-      context["autoStart"] ||
-      context["loadSelected"] ||
-      context["loadClipboard"],
+    context["mode"] ||
+    context["txt"] ||
+    context["img"] ||
+    context["autoStart"] ||
+    context["loadSelected"] ||
+    context["loadClipboard"],
   );
 }
 
