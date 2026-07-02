@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Clipboard, confirmAlert, Icon, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Clipboard, confirmAlert, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -403,12 +403,12 @@ export const ContentView = (props: ContentViewProps) => {
         <Action.CopyToClipboard
           title="Copy Result"
           content={record.result.text ?? ""}
-          shortcut={{ modifiers: ["cmd", "ctrl"], key: "c" }}
+          shortcut={Keyboard.Shortcut.Common.CopyPath}
         />
         <Action.CopyToClipboard
           title="Copy Original"
           content={record.result.original ?? ""}
-          shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+          shortcut={Keyboard.Shortcut.Common.Copy}
         />
       </ActionPanel.Section>
       {getLoadActionSection(record, (str) => {

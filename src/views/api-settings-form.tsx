@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Form, Icon, showToast, Toast, useNavigation } from "@raycast/api";
+import { Action, ActionPanel, Form, Icon, Keyboard, showToast, Toast, useNavigation } from "@raycast/api";
 import { useCallback, useEffect, useState } from "react";
 import { ApiSettingsHook } from "../hooks/useApiSettings";
 import { ApiCompatible, compatibilityProfiles, getCompatibilityProfile } from "../runtime/api-compatibility";
@@ -167,7 +167,7 @@ export function ApiSettingsForm({ hook }: ApiSettingsFormProps) {
             title="Refresh Model List"
             icon={Icon.ArrowClockwise}
             onAction={() => loadModelList(true)}
-            shortcut={{ modifiers: ["cmd"], key: "r" }}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
           />
         </ActionPanel>
       }

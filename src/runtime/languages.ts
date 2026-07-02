@@ -16,7 +16,7 @@ export const isChineseLangCode = (langCode: string) => chineseLangCodes.indexOf(
 export async function detectLang(text: string): Promise<string | null> {
   try {
     return await detect(text);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
