@@ -1,6 +1,7 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "kraft",
+  "version": "0.0.1",
   "title": "Kraft",
   "description": "Composable AI tools for text, clipboard, selection, OCR, workflows, and conversation.",
   "icon": "extension_icon.png",
