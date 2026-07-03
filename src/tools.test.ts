@@ -105,4 +105,8 @@ assert.match(
 const useQuerySource = fs.readFileSync("src/hooks/useQuery.tsx", "utf8");
 assert.match(useQuerySource, /const \[from, setFrom\] = useState<string>\("en"\)/);
 assert.match(useQuerySource, /const shouldLoadClipboard =/);
+assert.match(useQuerySource, /const clipboardText = text\?\.trim\(\) \?\? ""/);
+assert.match(useQuerySource, /if \(clipboardText\.length > 1\)/);
 assert.doesNotMatch(useQuerySource, /title:\s*"Selected text couldn't load"/);
+assert.doesNotMatch(useQuerySource, /title:\s*"Input text couldn't load"/);
+assert.match(contentSource, /if\s*\(\s*query\.text\.trim\(\)\.length\s*===\s*0\s*\)\s*\{/);

@@ -51,10 +51,8 @@ export function useQuery(props: UseQueryProps): QueryHook {
   useEffect(() => {
     (async () => {
       let tmp = "";
-      if (text.length == 0) {
+      if (text.trim().length == 0) {
         const shouldLoadSelected = forceEnableAutoLoadSelected || appSettings.autoLoadSelected;
-        let selectedLoadError: unknown;
-        let clipboardLoadError: unknown;
 
         if (shouldLoadSelected) {
           setLoading(true);
@@ -67,8 +65,8 @@ export function useQuery(props: UseQueryProps): QueryHook {
                 title: "Selected text loaded!",
               });
             }
-          } catch (error) {
-            selectedLoadError = error;
+          } catch {
+            // Missing selected text is a normal empty-input state; stay idle and allow clipboard fallback.
           } finally {
             setLoading(false);
           }
@@ -79,15 +77,15 @@ export function useQuery(props: UseQueryProps): QueryHook {
           setLoading(true);
           try {
             const { text } = await Clipboard.read();
-            if (text.trim().length > 1) {
-              tmp = text.trim();
+            const clipboardText = text?.trim() ?? "";
+            if (clipboardText.length > 1) {
+              tmp = clipboardText;
               await showToast({
                 style: Toast.Style.Success,
                 title: "Clipboard text loaded!",
               });
             }
           } catch (error) {
-            clipboardLoadError = error;
             await showToast({
               style: Toast.Style.Failure,
               title: "Clipboard text couldn't load",
@@ -96,13 +94,6 @@ export function useQuery(props: UseQueryProps): QueryHook {
           } finally {
             setLoading(false);
           }
-        }
-        if (tmp.length == 0 && selectedLoadError && !clipboardLoadError) {
-          await showToast({
-            style: Toast.Style.Failure,
-            title: "Input text couldn't load",
-            message: String(selectedLoadError),
-          });
         }
         if (tmp.length > 0) {
           setText(tmp);

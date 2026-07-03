@@ -144,6 +144,14 @@ export const ContentView = (props: ContentViewProps) => {
   }
 
   async function doQuery() {
+    if (query.text.trim().length === 0) {
+      await query.updateQuerying(false);
+      await query.updateOcr(undefined);
+      await removeOcrTempImage(query.ocrImage);
+      return;
+    }
+
+    const text = query.text.trim();
     const runId = uuidv4();
     const trace = createTraceContext({
       clientRequestId: runId,
@@ -158,7 +166,7 @@ export const ContentView = (props: ContentViewProps) => {
       mode,
       tool: activeTool.title,
       runtime: apiSettings.data.apiCompatible,
-      inputChars: query.text.length,
+      inputChars: text.length,
       conversationTurns: conversation.length,
       proxyMode: appSettings.proxyMode,
     });
@@ -220,9 +228,8 @@ export const ContentView = (props: ContentViewProps) => {
       style: Toast.Style.Animated,
     });
 
-    const text = query.text;
     diagnostics.checkpoint("language.detect.start", { auto: query.from === "auto" });
-    const detectFrom: string = query.from == "auto" ? (await detectLang(query.text)) ?? "en" : query.from;
+    const detectFrom: string = query.from == "auto" ? (await detectLang(text)) ?? "en" : query.from;
     diagnostics.checkpoint("language.detect.done", { detectFrom });
     const detectTo = query.to;
     const img = query.ocrImage;
