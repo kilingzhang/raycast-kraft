@@ -1,7 +1,7 @@
 import { LocalStorage } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ToolMode } from "../runtime/types";
-import { mergeToolSettings, ToolSetting, ToolSettings } from "../tool-settings";
+import { createDefaultToolSetting, mergeToolSettings, normalizeToolSetting, ToolSetting, ToolSettings } from "../tool-settings";
 
 const STORAGE_KEY = "toolSettings.v1";
 
@@ -47,12 +47,10 @@ export function useToolSettings(): ToolSettingsHook {
   }, [data, isLoading]);
 
   const updateToolSetting = useCallback(async (mode: ToolMode, patch: Partial<ToolSetting>) => {
+    const fallback = dataRef.current[mode] ?? createDefaultToolSetting();
     const next = {
       ...dataRef.current,
-      [mode]: {
-        ...dataRef.current[mode],
-        ...patch,
-      },
+      [mode]: normalizeToolSetting({ ...fallback, ...patch }, fallback),
     };
     dataRef.current = next;
     setData(next);

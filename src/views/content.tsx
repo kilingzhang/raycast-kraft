@@ -15,6 +15,7 @@ import capitalize from "capitalize";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { getLoadActionSection } from "../actions/load";
+import { getOutputActionSection } from "../actions/output";
 import { readModelListCache } from "../hooks/model-cache";
 import { ApiSettingsHook } from "../hooks/useApiSettings";
 import { HistoryHook, Record } from "../hooks/useHistory";
@@ -32,13 +33,13 @@ import {
   assertNonEmptyToolOutput,
   buildPromptMessages,
   buildToolVariables,
-  ConversationMessage,
 } from "../runtime/tool-runtime";
 import { createDiagnosticLogger } from "../runtime/diagnostics";
 import { createSessionId, createTraceContext } from "../runtime/tracing";
 import { resolveToolModel, ToolSetting } from "../tool-settings";
 import { ToolDefinition } from "../tools";
 import { getToolIcon } from "../tool-icons";
+import { useConversation } from "../hooks/useConversation";
 import { DetailView } from "./detail";
 import { EmptyView } from "./empty";
 import { ToolSettingsForm } from "./tool-settings-form";
@@ -108,7 +109,8 @@ export const ContentView = (props: ContentViewProps) => {
   const [querying, setQuerying] = useState<Querying | null>();
   const [resultText, setResultText] = useState("");
   const [showMetadata, setShowMetadata] = useState(appSettings.alwaysShowMetadata);
-  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const conversationState = useConversation(mode, toolSetting.enableConversation);
+  const conversation = conversationState.conversation;
   const [pendingToolRun, setPendingToolRun] = useState<PendingToolRun | null>(null);
   const [sessionId] = useState(() => createSessionId());
 
@@ -285,6 +287,9 @@ export const ContentView = (props: ContentViewProps) => {
         agent,
         diagnostics,
         trace,
+        temperature: toolSetting.temperature,
+        maxTokens: toolSetting.maxTokens,
+        allowNonStreamFallback: true,
         raycastAI: {
           ask(prompt, options) {
             return AI.ask(prompt, options as never) as RaycastAIStream;
@@ -326,11 +331,7 @@ export const ContentView = (props: ContentViewProps) => {
       await history.add(record);
       diagnostics.checkpoint("history.add.done");
       if (toolSetting.enableConversation) {
-        setConversation((current) => [
-          ...current,
-          { role: "user", content: text },
-          { role: "assistant", content: output },
-        ]);
+        conversationState.appendTurn(text, output);
       }
       query.updateQuerying(false);
       query.updateOcr(undefined);
@@ -518,12 +519,8 @@ export const ContentView = (props: ContentViewProps) => {
     <ActionPanel>
       <Action title="Run Again" icon={Icon.Repeat} onAction={() => rerunRecord(record)} />
       {getCommonActions({ text: record.result.original, ocrImg: record.ocrImg, autoRun: true })}
+      {getOutputActionSection(record.result.error ? "" : record.result.text)}
       <ActionPanel.Section title="Copy">
-        <Action.CopyToClipboard
-          title="Copy Result"
-          content={record.result.text ?? ""}
-          shortcut={Keyboard.Shortcut.Common.CopyPath}
-        />
         <Action.CopyToClipboard
           title="Copy Original"
           content={record.result.original ?? ""}
@@ -547,7 +544,7 @@ export const ContentView = (props: ContentViewProps) => {
             title="Clear Conversation"
             icon={Icon.XmarkCircle}
             onAction={() => {
-              setConversation([]);
+              conversationState.clear();
             }}
           />
         )}
@@ -616,6 +613,7 @@ export const ContentView = (props: ContentViewProps) => {
                 ocrImg={query.ocrImage}
                 to={item.query.detectTo}
                 provider={item.query.model}
+                renderer={toolSetting.renderer}
               />
             }
           />
@@ -640,6 +638,7 @@ export const ContentView = (props: ContentViewProps) => {
                 created_at={item.created_at}
                 ocrImg={item.ocrImg}
                 provider={item.provider}
+                renderer={toolSetting.renderer}
               />
             }
           />

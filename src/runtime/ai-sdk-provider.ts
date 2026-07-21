@@ -1,6 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText, type LanguageModel, type ModelMessage } from "ai";
+import { generateText, streamText, type LanguageModel, type ModelMessage } from "ai";
 import nodeFetch, { type RequestInit as NodeFetchRequestInit } from "node-fetch";
 import { ProxyAgent } from "proxy-agent";
 import { ApiSettings } from "./api-settings";
@@ -8,6 +8,7 @@ import { DiagnosticLogger, noopDiagnosticLogger } from "./diagnostics";
 import { buildCompatibleUrl, getCompatibilityProfile } from "./api-compatibility";
 import { ConversationMessage } from "./tool-runtime";
 import { AITraceContext, traceHeaders } from "./tracing";
+import { resolveGenerationOptions } from "./generation-options";
 
 export type AISDKProviderModel = LanguageModel & {
   readonly modelId: string;
@@ -21,6 +22,8 @@ export interface AISDKStreamInput {
   agent?: InstanceType<typeof ProxyAgent>;
   diagnostics?: DiagnosticLogger;
   trace?: AITraceContext;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 function toModelMessages(messages: ConversationMessage[]): ModelMessage[] {
@@ -118,6 +121,7 @@ export async function* streamAISDKText(input: AISDKStreamInput): AsyncGenerator<
   let outputChars = 0;
   let firstDeltaAt = 0;
   const url = requestUrl(input.settings);
+  const generation = resolveGenerationOptions(input);
 
   diagnostics.checkpoint("chat.request.start", {
     provider: "ai-sdk",
@@ -126,6 +130,8 @@ export async function* streamAISDKText(input: AISDKStreamInput): AsyncGenerator<
     model: input.model,
     messageCount: input.messages.length,
     proxy: Boolean(input.agent),
+    temperature: generation.temperature,
+    maxTokens: generation.maxTokens,
     traceId: input.trace?.traceId,
     clientRequestId: input.trace?.clientRequestId,
     sessionId: input.trace?.sessionId,
@@ -135,8 +141,8 @@ export async function* streamAISDKText(input: AISDKStreamInput): AsyncGenerator<
     const result = streamText({
       model: buildAISDKProviderModel(input.settings, input.model, input.trace, input.agent, diagnostics),
       messages: toModelMessages(input.messages),
-      temperature: 0,
-      maxOutputTokens: 1024,
+      temperature: generation.temperature,
+      maxOutputTokens: generation.maxTokens,
       maxRetries: 0,
       abortSignal: input.signal,
     });
@@ -160,6 +166,45 @@ export async function* streamAISDKText(input: AISDKStreamInput): AsyncGenerator<
     diagnostics.finish("chat.error", {
       deltaCount,
       outputChars,
+      totalMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+export async function generateAISDKText(input: AISDKStreamInput): Promise<string> {
+  const diagnostics = input.diagnostics ?? noopDiagnosticLogger;
+  const startedAt = Date.now();
+  const generation = resolveGenerationOptions(input);
+  const url = requestUrl(input.settings);
+
+  diagnostics.checkpoint("chat.non_stream.start", {
+    provider: "ai-sdk",
+    runtime: input.settings.apiCompatible,
+    url,
+    model: input.model,
+    messageCount: input.messages.length,
+    temperature: generation.temperature,
+    maxTokens: generation.maxTokens,
+  });
+
+  try {
+    const result = await generateText({
+      model: buildAISDKProviderModel(input.settings, input.model, input.trace, input.agent, diagnostics),
+      messages: toModelMessages(input.messages),
+      temperature: generation.temperature,
+      maxOutputTokens: generation.maxTokens,
+      maxRetries: 0,
+      abortSignal: input.signal,
+    });
+    diagnostics.finish("chat.non_stream.complete", {
+      outputChars: result.text.length,
+      totalMs: Date.now() - startedAt,
+    });
+    return result.text;
+  } catch (error) {
+    diagnostics.finish("chat.non_stream.error", {
       totalMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),
     });

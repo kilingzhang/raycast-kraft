@@ -9,6 +9,8 @@ export interface ToolSetting {
   prompt: string;
   renderer: ToolRenderer;
   enableConversation: boolean;
+  temperature: number;
+  maxTokens: number;
   workflow: WorkflowStepId[];
 }
 
@@ -24,6 +26,8 @@ export const defaultToolSettings: Record<BuiltInToolMode, ToolSetting> = {
       "Translate {{input}} from {{sourceLang}} to {{targetLang}}. Preserve meaning, tone, formatting, and only return the translation.",
     renderer: "markdown",
     enableConversation: false,
+    temperature: 0,
+    maxTokens: 2048,
     workflow: defaultWorkflow,
   },
   polishing: {
@@ -33,6 +37,8 @@ export const defaultToolSettings: Record<BuiltInToolMode, ToolSetting> = {
       "Polish the following {{sourceLang}} text for clarity, flow, and professional tone. Return only the revised text.\n\n{{input}}",
     renderer: "markdown",
     enableConversation: false,
+    temperature: 0.3,
+    maxTokens: 2048,
     workflow: defaultWorkflow,
   },
   summarize: {
@@ -41,6 +47,8 @@ export const defaultToolSettings: Record<BuiltInToolMode, ToolSetting> = {
     prompt: "Summarize the following content in {{targetLang}}. Keep the result concise and structured.\n\n{{input}}",
     renderer: "markdown",
     enableConversation: false,
+    temperature: 0.2,
+    maxTokens: 2048,
     workflow: defaultWorkflow,
   },
   what: {
@@ -50,6 +58,8 @@ export const defaultToolSettings: Record<BuiltInToolMode, ToolSetting> = {
       "Explain or identify the following content in {{targetLang}}. Use Markdown with clear sections.\n\n{{input}}\n\nConversation context:\n{{conversation}}",
     renderer: "markdown",
     enableConversation: true,
+    temperature: 0.5,
+    maxTokens: 4096,
     workflow: [...defaultWorkflow, "conversation"],
   },
 };
@@ -61,8 +71,42 @@ export function createDefaultToolSetting(patch: Partial<ToolSetting> = {}): Tool
     prompt: "{{input}}",
     renderer: "markdown",
     enableConversation: false,
+    temperature: 0.2,
+    maxTokens: 2048,
     workflow: defaultWorkflow,
     ...patch,
+  };
+}
+
+function clampTemperature(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(2, Math.max(0, parsed));
+}
+
+function clampMaxTokens(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.min(128000, Math.floor(parsed));
+}
+
+export function normalizeToolSetting(setting: Partial<ToolSetting>, fallback: ToolSetting = createDefaultToolSetting()): ToolSetting {
+  return {
+    ...fallback,
+    ...setting,
+    model: typeof setting.model === "string" ? setting.model : fallback.model,
+    customModel: typeof setting.customModel === "string" ? setting.customModel : fallback.customModel,
+    prompt: typeof setting.prompt === "string" && setting.prompt.trim() ? setting.prompt : fallback.prompt,
+    renderer:
+      setting.renderer === "plain" || setting.renderer === "markdown" ? setting.renderer : fallback.renderer,
+    enableConversation: Boolean(setting.enableConversation ?? fallback.enableConversation),
+    temperature: clampTemperature(setting.temperature, fallback.temperature),
+    maxTokens: clampMaxTokens(setting.maxTokens, fallback.maxTokens),
+    workflow: Array.isArray(setting.workflow) && setting.workflow.length ? setting.workflow : fallback.workflow,
   };
 }
 
@@ -75,14 +119,14 @@ export function getDefaultToolSetting(mode: ToolMode): ToolSetting {
 
 export function mergeToolSettings(stored: Partial<Record<string, Partial<ToolSetting>>>): ToolSettings {
   return {
-    translate: { ...defaultToolSettings.translate, ...stored.translate },
-    polishing: { ...defaultToolSettings.polishing, ...stored.polishing },
-    summarize: { ...defaultToolSettings.summarize, ...stored.summarize },
-    what: { ...defaultToolSettings.what, ...stored.what },
+    translate: normalizeToolSetting(stored.translate ?? {}, defaultToolSettings.translate),
+    polishing: normalizeToolSetting(stored.polishing ?? {}, defaultToolSettings.polishing),
+    summarize: normalizeToolSetting(stored.summarize ?? {}, defaultToolSettings.summarize),
+    what: normalizeToolSetting(stored.what ?? {}, defaultToolSettings.what),
     ...Object.fromEntries(
       Object.entries(stored)
         .filter(([mode]) => mode.startsWith("custom:"))
-        .map(([mode, setting]) => [mode, createDefaultToolSetting(setting)]),
+        .map(([mode, setting]) => [mode, normalizeToolSetting(setting ?? {})]),
     ),
   };
 }

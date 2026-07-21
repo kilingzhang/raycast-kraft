@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { defaultAppSettings, sanitizeAppSettings } from "./app-settings";
 import { defaultApiSettings, sanitizeApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile, normalizeApiBase } from "./api-compatibility";
-import { buildRaycastAIPrompt, streamToolCompletion } from "./llm-client";
+import { buildRaycastAIPrompt, completeChatOnce, resolveGenerationOptions, shouldFallbackToNonStream, streamToolCompletion } from "./llm-client";
 import { buildModelListUrlCandidates, buildModelsUrl, parseModelList, parseRaycastAIModelEnum } from "./model-list";
 import {
   assertNonEmptyToolOutput,
@@ -14,6 +14,8 @@ import {
 import { validateApiConnection } from "./api-validation";
 import { createSessionId, createTraceContext, traceHeaders } from "./tracing";
 import { buildAISDKProviderModel, buildAISDKProviderHeaders } from "./ai-sdk-provider";
+import { createDefaultToolSetting, mergeToolSettings, normalizeToolSetting } from "../tool-settings";
+import { formatResultBody } from "./render-output";
 
 const raycastProfile = getCompatibilityProfile("raycast");
 assert.equal(raycastProfile.chatPath, "");
@@ -154,6 +156,26 @@ assert.equal(
 assert.equal(assertNonEmptyToolOutput("translated text"), "translated text");
 assert.throws(() => assertNonEmptyToolOutput(" \n "), /empty response/);
 
+assert.deepEqual(resolveGenerationOptions({}), { temperature: 0, maxTokens: 2048 });
+assert.deepEqual(resolveGenerationOptions({ temperature: 0.7, maxTokens: 4096 }), { temperature: 0.7, maxTokens: 4096 });
+assert.deepEqual(resolveGenerationOptions({ temperature: 9, maxTokens: -1 }), { temperature: 2, maxTokens: 2048 });
+assert.equal(shouldFallbackToNonStream(new Error("SSE parse failed")), true);
+assert.equal(shouldFallbackToNonStream(new Error("Connection Timeout")), false);
+{
+  const controller = new AbortController();
+  controller.abort();
+  assert.equal(shouldFallbackToNonStream(new Error("aborted"), controller.signal), false);
+}
+
+assert.equal(formatResultBody("hello **world**", "markdown"), "hello **world**");
+assert.equal(formatResultBody("hello **world**", "plain"), "```\nhello **world**\n```");
+assert.equal(normalizeToolSetting({}).temperature, 0.2);
+assert.equal(normalizeToolSetting({ temperature: 0.8, maxTokens: 1000 }).maxTokens, 1000);
+assert.equal(mergeToolSettings({}).translate.temperature, 0);
+assert.equal(mergeToolSettings({ translate: { temperature: 0.4 } }).translate.temperature, 0.4);
+assert.equal(createDefaultToolSetting({ renderer: "plain" }).renderer, "plain");
+assert.equal(mergeToolSettings({ translate: { prompt: "x" } }).translate.maxTokens, 2048);
+
 async function testRaycastAIValidationFlow() {
   const progress: string[] = [];
   const validationResult = await validateApiConnection(
@@ -238,31 +260,84 @@ async function testRaycastAIStreamingFallbackToResolvedText() {
 
 async function testOpenAIStreamingFlow() {
   const chunks: string[] = [];
-  const sseCalls: { url: string; body?: string; authorization?: string }[] = [];
+  const streamCalls: { model: string; temperature?: number; maxTokens?: number }[] = [];
 
   for await (const delta of streamToolCompletion({
     settings: { apiBase: "https://x.test/v1", apiKey: "test-key", apiCompatible: "openai" },
     model: "deepseek/deepseek-v4-pro",
     messages,
     signal: new AbortController().signal,
-    sseFetcher: async function* (url, init) {
-      sseCalls.push({
-        url,
-        body: init.body?.toString(),
-        authorization: (init.headers as Record<string, string> | undefined)?.Authorization,
+    temperature: 0.4,
+    maxTokens: 3333,
+    streamer: async function* (input) {
+      streamCalls.push({
+        model: input.model,
+        temperature: input.temperature,
+        maxTokens: input.maxTokens,
       });
-      yield Buffer.from('data: {"choices":[{"delta":{"content":"属性"}}]}\n\n');
-      yield Buffer.from("data: [DONE]\n\n");
+      yield "属性";
     },
   })) {
     chunks.push(delta);
   }
 
   assert.deepEqual(chunks, ["属性"]);
-  assert.equal(sseCalls[0].url, "https://x.test/v1/chat/completions");
-  assert.equal(sseCalls[0].authorization, "Bearer test-key");
-  assert.match(sseCalls[0].body ?? "", /deepseek\/deepseek-v4-pro/);
-  assert.match(sseCalls[0].body ?? "", /"stream":true/);
+  assert.equal(streamCalls[0].model, "deepseek/deepseek-v4-pro");
+  assert.equal(streamCalls[0].temperature, 0.4);
+  assert.equal(streamCalls[0].maxTokens, 3333);
+}
+
+async function testOpenAINonStreamFallbackFlow() {
+  const chunks: string[] = [];
+  let streamAttempts = 0;
+  let completeAttempts = 0;
+
+  for await (const delta of streamToolCompletion({
+    settings: { apiBase: "https://x.test/v1", apiKey: "test-key", apiCompatible: "openai" },
+    model: "gpt-test",
+    messages,
+    signal: new AbortController().signal,
+    allowNonStreamFallback: true,
+    streamer: async function* () {
+      streamAttempts += 1;
+      throw new Error("proxy does not support SSE");
+    },
+    completer: async () => {
+      completeAttempts += 1;
+      return "fallback text";
+    },
+  })) {
+    chunks.push(delta);
+  }
+
+  assert.equal(streamAttempts, 1);
+  assert.equal(completeAttempts, 1);
+  assert.deepEqual(chunks, ["fallback text"]);
+}
+
+async function testCompleteChatOnce() {
+  const text = await completeChatOnce({
+    settings: { apiBase: "https://x.test/v1", apiKey: "test-key", apiCompatible: "openai" },
+    model: "gpt-test",
+    messages,
+    signal: new AbortController().signal,
+    jsonFetcher: async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: "one shot" } }] }),
+        text: async () => "",
+      }) as Response,
+  });
+  assert.equal(text, "one shot");
+}
+
+async function testDefaultStreamerIsAISDKWired() {
+  // Smoke: streamer default path is AI SDK; we only assert the exported provider builders still work.
+  assert.equal(
+    buildAISDKProviderModel({ apiBase: "https://x.test/v1", apiKey: "k", apiCompatible: "openai" }, "gpt-test").modelId,
+    "gpt-test",
+  );
 }
 
 async function testOpenAIValidationFlow() {
@@ -364,6 +439,9 @@ Promise.all([
   testRaycastAIStreamingFlow(),
   testRaycastAIStreamingFallbackToResolvedText(),
   testOpenAIStreamingFlow(),
+  testOpenAINonStreamFallbackFlow(),
+  testCompleteChatOnce(),
+  testDefaultStreamerIsAISDKWired(),
   testOpenAIValidationFlow(),
   testAnthropicValidationFlow(),
   testValidationModelFallbackFlow(),

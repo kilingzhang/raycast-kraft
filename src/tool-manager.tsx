@@ -145,6 +145,8 @@ export default function Command() {
       prompt: currentSetting.prompt,
       renderer: currentSetting.renderer,
       enableConversation: currentSetting.enableConversation,
+      temperature: currentSetting.temperature,
+      maxTokens: currentSetting.maxTokens,
       workflow: currentSetting.workflow,
       mode: tool.mode,
       isSystem: true,

@@ -148,6 +148,8 @@ export function ToolMenu({ onOpenCurrentCommandTool }: ToolMenuProps) {
                               prompt: tool.defaultPrompt ?? "{{input}}",
                               renderer: tool.defaultRenderer ?? "markdown",
                               enableConversation: tool.defaultConversationEnabled ?? false,
+                              temperature: 0.2,
+                              maxTokens: 2048,
                               workflow: tool.workflow ?? ["input", "prompt", "llm", "renderer"],
                             }
                           }

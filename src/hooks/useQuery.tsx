@@ -38,7 +38,7 @@ export function useQuery(props: UseQueryProps): QueryHook {
   } = props;
   const [text, setText] = useState<string>(initialQuery || "");
   const [to, setTo] = useState<string>(appSettings.defaultOutputLanguage);
-  const [from, setFrom] = useState<string>("en");
+  const [from, setFrom] = useState<string>("auto");
   const [langType, setLangType] = useState("To");
   const [isLoading, setLoading] = useState<boolean>(false);
   const [querying, setQuerying] = useState<boolean>(false);

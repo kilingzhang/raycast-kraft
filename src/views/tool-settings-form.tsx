@@ -35,6 +35,8 @@ function formToolFromDefinition(tool: ToolDefinition, setting: ToolSetting): Tex
     prompt: setting.prompt || tool.defaultPrompt || "{{input}}",
     renderer: setting.renderer || tool.defaultRenderer || "markdown",
     enableConversation: setting.enableConversation ?? tool.defaultConversationEnabled ?? false,
+    temperature: setting.temperature,
+    maxTokens: setting.maxTokens,
     workflow: setting.workflow?.length ? setting.workflow : tool.workflow || defaultWorkflow,
     mode: tool.mode,
     isSystem: !customId,

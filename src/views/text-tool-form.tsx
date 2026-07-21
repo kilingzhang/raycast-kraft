@@ -19,12 +19,16 @@ export type TextToolFormValues = {
   customModel: string;
   renderer: ToolRenderer;
   enableConversation: boolean;
+  temperature: string;
+  maxTokens: string;
   prompt: string;
 };
 
 export type TextToolFormTool = CustomTextTool & {
   mode?: ToolMode;
   isSystem?: boolean;
+  temperature?: number;
+  maxTokens?: number;
 };
 
 export function textToolSettingPatch(values: TextToolFormValues): Partial<ToolSetting> {
@@ -34,6 +38,8 @@ export function textToolSettingPatch(values: TextToolFormValues): Partial<ToolSe
     prompt: values.prompt.trim() || "{{input}}",
     renderer: values.renderer,
     enableConversation: values.enableConversation,
+    temperature: Number(values.temperature),
+    maxTokens: Number(values.maxTokens),
   };
 }
 
@@ -143,7 +149,7 @@ export function TextToolForm({
       <Form.Separator />
       <Form.Description
         title="Behavior"
-        text="Renderer controls display. Conversation controls whether prior turns are included."
+        text="Renderer controls display. Conversation keeps prior turns for the current tool while this session stays open. Model params affect generation length and creativity."
       />
       <Form.Dropdown id="renderer" title="Renderer" defaultValue={tool.renderer}>
         <Form.Dropdown.Item value="markdown" title="Markdown" />
@@ -154,6 +160,24 @@ export function TextToolForm({
         title="Conversation"
         label="Enable multi-turn follow-up"
         defaultValue={tool.enableConversation}
+      />
+      <Form.TextField
+        id="temperature"
+        title="Temperature"
+        defaultValue={String(tool.temperature ?? 0.2)}
+        placeholder="0 - 2"
+        info="0 is deterministic. Higher values increase variation."
+      />
+      <Form.TextField
+        id="maxTokens"
+        title="Max Tokens"
+        defaultValue={String(tool.maxTokens ?? 2048)}
+        placeholder="2048"
+        info="Maximum response length requested from the model."
+      />
+      <Form.Description
+        title="Pipeline"
+        text="Execution always follows: Input → Prompt → LLM → Renderer. Conversation memory is appended when enabled. Workflow steps are descriptive metadata for now."
       />
       <Form.Separator />
       <Form.Description

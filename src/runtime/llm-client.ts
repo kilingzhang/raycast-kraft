@@ -1,12 +1,15 @@
-import { createParser } from "eventsource-parser";
 import { ProxyAgent } from "proxy-agent";
+import { generateAISDKText, streamAISDKText } from "./ai-sdk-provider";
 import { ApiSettings } from "./api-settings";
 import { buildCompatibleUrl, getCompatibilityProfile } from "./api-compatibility";
 import { requestHeaders } from "./model-list";
 import { ConversationMessage } from "./tool-runtime";
-import { fetchSSE } from "./http";
 import { DiagnosticLogger, noopDiagnosticLogger } from "./diagnostics";
+import { resolveGenerationOptions, type ModelGenerationOptions } from "./generation-options";
 import { AITraceContext, traceHeaders } from "./tracing";
+
+export type { ModelGenerationOptions };
+export { resolveGenerationOptions } from "./generation-options";
 
 export interface StreamChatInput {
   settings: ApiSettings;
@@ -16,7 +19,14 @@ export interface StreamChatInput {
   agent?: InstanceType<typeof ProxyAgent>;
   diagnostics?: DiagnosticLogger;
   trace?: AITraceContext;
-  sseFetcher?: typeof fetchSSE;
+  temperature?: number;
+  maxTokens?: number;
+  allowNonStreamFallback?: boolean;
+  jsonFetcher?: typeof fetch;
+  /** Test seam for OpenAI/Anthropic streaming. Defaults to AI SDK stream. */
+  streamer?: (input: StreamChatInput) => AsyncGenerator<string>;
+  /** Test seam for OpenAI/Anthropic non-stream fallback. Defaults to AI SDK generateText or raw JSON. */
+  completer?: (input: StreamChatInput) => Promise<string>;
 }
 
 export interface RaycastAIAskOptions {
@@ -35,30 +45,6 @@ export interface RaycastAIProvider {
 
 export interface StreamToolCompletionInput extends StreamChatInput {
   raycastAI?: RaycastAIProvider;
-}
-
-function parseOpenAIDelta(data: string): string | undefined {
-  if (data === "[DONE]") {
-    return undefined;
-  }
-
-  const payload = JSON.parse(data);
-  const choice = payload.choices?.[0];
-  if (!choice || choice.finish_reason) {
-    return undefined;
-  }
-  return choice.delta?.content ?? "";
-}
-
-function parseAnthropicDelta(data: string): string | undefined {
-  const payload = JSON.parse(data);
-  if (payload.type !== "content_block_delta") {
-    return undefined;
-  }
-  if (payload.delta?.type !== "text_delta") {
-    return undefined;
-  }
-  return payload.delta.text ?? "";
 }
 
 function splitMessagesForAnthropic(messages: ConversationMessage[]) {
@@ -107,11 +93,14 @@ export function buildRaycastAIPrompt(messages: ConversationMessage[]): string {
 }
 
 export function buildChatRequestBody(input: StreamChatInput, stream: boolean): Record<string, unknown> {
+  const { temperature, maxTokens } = resolveGenerationOptions(input);
+
   if (input.settings.apiCompatible === "anthropic") {
     const { system, conversation } = splitMessagesForAnthropic(input.messages);
     return {
       model: input.model,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
+      temperature,
       ...(system ? { system } : {}),
       messages: conversation,
       stream,
@@ -121,9 +110,34 @@ export function buildChatRequestBody(input: StreamChatInput, stream: boolean): R
   return {
     model: input.model,
     messages: input.messages,
-    temperature: 0,
+    temperature,
+    max_tokens: maxTokens,
     stream,
   };
+}
+
+export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) {
+    return true;
+  }
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  if ("name" in error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return true;
+  }
+  if ("message" in error && typeof error.message === "string") {
+    const message = error.message.toLowerCase();
+    return message.includes("aborted") || message.includes("connection timeout");
+  }
+  return false;
+}
+
+export function shouldFallbackToNonStream(error: unknown, signal?: AbortSignal): boolean {
+  if (isAbortError(error, signal)) {
+    return false;
+  }
+  return true;
 }
 
 export function parseChatResponse(settings: ApiSettings, payload: unknown): string {
@@ -258,67 +272,81 @@ async function* streamRaycastAICompletion(input: StreamToolCompletionInput): Asy
   }
 }
 
-export async function* streamChatCompletions(input: StreamChatInput): AsyncGenerator<string> {
-  const url = buildChatUrl(input.settings);
-  const diagnostics = input.diagnostics ?? noopDiagnosticLogger;
-  const startedAt = Date.now();
-  let deltaCount = 0;
-  let outputChars = 0;
-  let firstDeltaAt = 0;
-  const decoder = new TextDecoder();
-  const events: string[] = [];
-  const parser = createParser((event) => {
-    if (event.type === "event") {
-      events.push(event.data);
-    }
-  });
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...requestHeaders(input.settings),
-    ...traceHeaders(input.trace),
-  };
-  const body = JSON.stringify(buildChatRequestBody(input, true));
-
-  diagnostics.checkpoint("chat.request.start", {
-    runtime: input.settings.apiCompatible,
-    url,
+async function* streamWithAISDK(input: StreamChatInput): AsyncGenerator<string> {
+  yield* streamAISDKText({
+    settings: input.settings,
     model: input.model,
-    messageCount: input.messages.length,
-    bodyChars: body.length,
-    proxy: Boolean(input.agent),
-    traceId: input.trace?.traceId,
-    clientRequestId: input.trace?.clientRequestId,
-    sessionId: input.trace?.sessionId,
-  });
-
-  const sseFetcher = input.sseFetcher ?? fetchSSE;
-  for await (const chunk of sseFetcher(url, {
-    method: "POST",
-    body,
-    headers,
+    messages: input.messages,
     signal: input.signal,
-    agent: input.agent as never,
-    diagnostics,
-  })) {
-    events.length = 0;
-    parser.feed(decoder.decode(chunk as ArrayBuffer));
-    for (const event of events) {
-      const delta = input.settings.apiCompatible === "anthropic" ? parseAnthropicDelta(event) : parseOpenAIDelta(event);
-      if (delta) {
-        deltaCount += 1;
-        outputChars += delta.length;
-        if (!firstDeltaAt) {
-          firstDeltaAt = Date.now();
-          diagnostics.checkpoint("chat.first_delta", { firstDeltaMs: firstDeltaAt - startedAt });
-        } else if (deltaCount <= 5 || deltaCount % 20 === 0) {
-          diagnostics.checkpoint("chat.delta", { deltaCount, outputChars });
-        }
-        yield delta;
-      }
-    }
+    agent: input.agent,
+    diagnostics: input.diagnostics,
+    trace: input.trace,
+    temperature: input.temperature,
+    maxTokens: input.maxTokens,
+  });
+}
+
+export async function completeChatOnce(input: StreamChatInput): Promise<string> {
+  if (input.completer) {
+    return input.completer(input);
   }
-  diagnostics.finish("chat.complete", { deltaCount, outputChars, totalMs: Date.now() - startedAt });
+
+  if (input.jsonFetcher) {
+    const url = buildChatUrl(input.settings);
+    const diagnostics = input.diagnostics ?? noopDiagnosticLogger;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...requestHeaders(input.settings),
+      ...traceHeaders(input.trace),
+    };
+    const body = JSON.stringify(buildChatRequestBody(input, false));
+    const startedAt = Date.now();
+    diagnostics.checkpoint("chat.non_stream.start", {
+      runtime: input.settings.apiCompatible,
+      url,
+      model: input.model,
+      messageCount: input.messages.length,
+      bodyChars: body.length,
+      via: "jsonFetcher",
+    });
+
+    const response = await input.jsonFetcher(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: input.signal,
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      diagnostics.finish("chat.non_stream.error", {
+        status: response.status,
+        bodyChars: responseText.length,
+        totalMs: Date.now() - startedAt,
+      });
+      throw new Error(responseText || `Chat request failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const text = parseChatResponse(input.settings, payload);
+    diagnostics.finish("chat.non_stream.complete", {
+      outputChars: text.length,
+      totalMs: Date.now() - startedAt,
+    });
+    return text;
+  }
+
+  return generateAISDKText({
+    settings: input.settings,
+    model: input.model,
+    messages: input.messages,
+    signal: input.signal,
+    agent: input.agent,
+    diagnostics: input.diagnostics,
+    trace: input.trace,
+    temperature: input.temperature,
+    maxTokens: input.maxTokens,
+  });
 }
 
 export async function* streamToolCompletion(input: StreamToolCompletionInput): AsyncGenerator<string> {
@@ -327,5 +355,23 @@ export async function* streamToolCompletion(input: StreamToolCompletionInput): A
     return;
   }
 
-  yield* streamChatCompletions(input);
+  const streamer = input.streamer ?? streamWithAISDK;
+
+  try {
+    yield* streamer(input);
+  } catch (error) {
+    if (input.allowNonStreamFallback === false || !shouldFallbackToNonStream(error, input.signal)) {
+      throw error;
+    }
+
+    const diagnostics = input.diagnostics ?? noopDiagnosticLogger;
+    diagnostics.checkpoint("chat.stream_fallback.start", {
+      reason: error instanceof Error ? error.message : String(error),
+      provider: "ai-sdk",
+    });
+    const text = await completeChatOnce(input);
+    if (text) {
+      yield text;
+    }
+  }
 }
